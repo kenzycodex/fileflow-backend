@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Files Shared With You</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            margin: 0;
+            padding: 0;
+        }
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .header {
+            background-color: #4a6ee0;
+            color: white;
+            padding: 20px;
+            text-align: center;
+            border-radius: 4px 4px 0 0;
+        }
+        .content {
+            background-color: #f9f9f9;
+            padding: 20px;
+            border-radius: 0 0 4px 4px;
+            border: 1px solid #eee;
+            border-top: none;
+        }
+        .button {
+            display: inline-block;
+            background-color: #4a6ee0;
+            color: white;
+            text-decoration: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            margin-top: 20px;
+        }
+        .item-details {
+            background-color: #f2f2f2;
+            padding: 15px;
+            border-radius: 4px;
+            margin: 15px 0;
+        }
+        .footer {
+            margin-top: 20px;
+            text-align: center;
+            font-size: 12px;
+            color: #666;
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <div class="header">
+        <h1>Files Shared With You</h1>
+    </div>
+    <div class="content">
+        <p>Hello,</p>
+        <p><strong>${senderName}</strong> has shared a ${itemType} with you on FileFlow.</p>
+
+        <div class="item-details">
+            <p><strong>Item:</strong> ${itemName}</p>
+            <p><strong>Shared by:</strong> ${senderName} (${senderEmail})</p>
+            <p><strong>Permission:</strong> ${permission}</p>
+            <p><strong>Message:</strong> "${message}"</p>
+            <p><strong>Expires:</strong> ${expiryDate}</p>
+        </div>
+
+        <div style="text-align: center;">
+            <a href="${accessLink}" class="button">View ${itemType}</a>
+        </div>
+
+        <p>You can access this item through your FileFlow account or directly via the link above.</p>
+        <p>The FileFlow Team</p>
+    </div>
+    <div class="footer">
+        <p>This is an automated message. Please do not reply to this email.</p>
+        <p>&copy; 2025 FileFlow. All rights reserved.</p>
+    </div>
+</div>
+</body>
+</html>

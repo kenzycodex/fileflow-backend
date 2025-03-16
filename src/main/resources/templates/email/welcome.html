@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Welcome to FileFlow</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            margin: 0;
+            padding: 0;
+        }
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .header {
+            background-color: #4a6ee0;
+            color: white;
+            padding: 20px;
+            text-align: center;
+            border-radius: 4px 4px 0 0;
+        }
+        .content {
+            background-color: #f9f9f9;
+            padding: 20px;
+            border-radius: 0 0 4px 4px;
+            border: 1px solid #eee;
+            border-top: none;
+        }
+        .button {
+            display: inline-block;
+            background-color: #4a6ee0;
+            color: white;
+            text-decoration: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            margin-top: 20px;
+        }
+        .footer {
+            margin-top: 20px;
+            text-align: center;
+            font-size: 12px;
+            color: #666;
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <div class="header">
+        <h1>Welcome to FileFlow!</h1>
+    </div>
+    <div class="content">
+        <p>Hello <strong>${username}</strong>,</p>
+        <p>Thank you for creating an account with FileFlow. We're excited to have you on board!</p>
+        <p>With your new account, you can:</p>
+        <ul>
+            <li>Store and organize your files securely in the cloud</li>
+            <li>Share files and folders with colleagues and friends</li>
+            <li>Access your files from anywhere, on any device</li>
+            <li>Collaborate with others in real-time</li>
+        </ul>
+        <p>Please verify your email address by clicking the button below:</p>
+        <div style="text-align: center;">
+            <a href="${verificationLink}" class="button">Verify Email Address</a>
+        </div>
+        <p>If you have any questions or need assistance, please don't hesitate to contact our support team.</p>
+        <p>Happy file managing!</p>
+        <p>The FileFlow Team</p>
+    </div>
+    <div class="footer">
+        <p>This is an automated message. Please do not reply to this email.</p>
+        <p>&copy; 2025 FileFlow. All rights reserved.</p>
+    </div>
+</div>
+</body>
+</html>

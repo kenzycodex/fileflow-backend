@@ -1,0 +1,54 @@
+version: '3.8'
+
+services:
+  app:
+    build: .
+    ports:
+      - "8080:8080"
+    depends_on:
+      - mysql
+      - minio
+    environment:
+      - SPRING_DATASOURCE_URL=jdbc:mysql://mysql:3306/fileflow?createDatabaseIfNotExist=true&useSSL=false&serverTimezone=UTC
+      - SPRING_DATASOURCE_USERNAME=root
+      - SPRING_DATASOURCE_PASSWORD=password
+      - APP_MINIO_ENDPOINT=http://minio:9000
+      - APP_MINIO_ACCESS_KEY=minioadmin
+      - APP_MINIO_SECRET_KEY=minioadmin
+      - APP_STORAGE_STRATEGY=minio
+    networks:
+      - fileflow-network
+
+  mysql:
+    image: mysql:8.0
+    ports:
+      - "3306:3306"
+    environment:
+      - MYSQL_ROOT_PASSWORD=password
+      - MYSQL_DATABASE=fileflow
+    volumes:
+      - mysql-data:/var/lib/mysql
+    networks:
+      - fileflow-network
+
+    minio:
+      image: minio/minio
+      ports:
+        - "9000:9000"
+        - "9001:9001"
+      environment:
+        - MINIO_ROOT_USER=minioadmin
+        - MINIO_ROOT_PASSWORD=minioadmin
+      volumes:
+        - minio-data:/data
+      command: server /data --console-address ":9001"
+      networks:
+        - fileflow-network
+
+  networks:
+    fileflow-network:
+      driver: bridge
+
+  volumes:
+    mysql-data:
+    minio-data:
