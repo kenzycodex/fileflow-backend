@@ -1,5 +1,6 @@
 package com.fileflow.model;
 
+import jakarta.validation.constraints.NotBlank;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -41,7 +42,7 @@ public class Device {
     @Size(max = 255)
     private String pushToken;
 
-    private LocalDateTime created_at;
+    private LocalDateTime createdAt;
 
     private LocalDateTime lastActive;
 }

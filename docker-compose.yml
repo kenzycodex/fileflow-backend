@@ -3,24 +3,34 @@ version: '3.8'
 services:
   app:
     build: .
+    container_name: fileflow-app
     ports:
       - "8080:8080"
     depends_on:
       - mysql
       - minio
+      - elasticsearch
     environment:
-      - SPRING_DATASOURCE_URL=jdbc:mysql://mysql:3306/fileflow?createDatabaseIfNotExist=true&useSSL=false&serverTimezone=UTC
+      - SPRING_PROFILES_ACTIVE=prod
+      - SPRING_DATASOURCE_URL=jdbc:mysql://mysql:3306/fileflow?createDatabaseIfNotExist=true&useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true
       - SPRING_DATASOURCE_USERNAME=root
       - SPRING_DATASOURCE_PASSWORD=password
       - APP_MINIO_ENDPOINT=http://minio:9000
       - APP_MINIO_ACCESS_KEY=minioadmin
       - APP_MINIO_SECRET_KEY=minioadmin
+      - APP_MINIO_BUCKET=fileflow
       - APP_STORAGE_STRATEGY=minio
+      - ELASTICSEARCH_HOST=elasticsearch
+      - ELASTICSEARCH_PORT=9200
+    volumes:
+      - fileflow-storage:/app/fileflow-storage
     networks:
       - fileflow-network
+    restart: unless-stopped
 
   mysql:
     image: mysql:8.0
+    container_name: fileflow-mysql
     ports:
       - "3306:3306"
     environment:
@@ -30,25 +40,48 @@ services:
       - mysql-data:/var/lib/mysql
     networks:
       - fileflow-network
+    restart: unless-stopped
+    command: --default-authentication-plugin=mysql_native_password
 
-    minio:
-      image: minio/minio
-      ports:
-        - "9000:9000"
-        - "9001:9001"
-      environment:
-        - MINIO_ROOT_USER=minioadmin
-        - MINIO_ROOT_PASSWORD=minioadmin
-      volumes:
-        - minio-data:/data
-      command: server /data --console-address ":9001"
-      networks:
-        - fileflow-network
+  minio:
+    image: minio/minio:latest
+    container_name: fileflow-minio
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    environment:
+      - MINIO_ROOT_USER=minioadmin
+      - MINIO_ROOT_PASSWORD=minioadmin
+    volumes:
+      - minio-data:/data
+    command: server /data --console-address ":9001"
+    networks:
+      - fileflow-network
+    restart: unless-stopped
 
-  networks:
-    fileflow-network:
-      driver: bridge
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:7.17.0
+    container_name: fileflow-elasticsearch
+    environment:
+      - discovery.type=single-node
+      - bootstrap.memory_lock=true
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+      - xpack.security.enabled=false
+    ports:
+      - "9200:9200"
+      - "9300:9300"
+    volumes:
+      - elasticsearch-data:/usr/share/elasticsearch/data
+    networks:
+      - fileflow-network
+    restart: unless-stopped
 
-  volumes:
-    mysql-data:
-    minio-data:
+networks:
+  fileflow-network:
+    driver: bridge
+
+volumes:
+  mysql-data:
+  minio-data:
+  elasticsearch-data:
+  fileflow-storage:

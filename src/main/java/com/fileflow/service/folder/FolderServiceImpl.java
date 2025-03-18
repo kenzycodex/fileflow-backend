@@ -17,7 +17,6 @@ import com.fileflow.repository.FolderRepository;
 import com.fileflow.repository.UserRepository;
 import com.fileflow.security.UserPrincipal;
 import com.fileflow.service.activity.ActivityService;
-import com.fileflow.service.file.FileService;
 import com.fileflow.util.Constants;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -111,10 +110,14 @@ public class FolderServiceImpl implements FolderService {
         // Special case for root folder (null folderId)
         List<Folder> folders;
         List<File> files;
+        String folderName = null;
+        Long parentFolderId = null;
+        String parentFolderName = null;
 
         if (folderId == null) {
             folders = folderRepository.findByUserAndParentFolderAndIsDeletedFalse(currentUser, null);
             files = fileRepository.findByUserAndParentFolderAndIsDeletedFalse(currentUser, null);
+            folderName = "Root";
         } else {
             Folder folder = folderRepository.findByIdAndUserAndIsDeletedFalse(folderId, currentUser)
                     .orElseThrow(() -> new ResourceNotFoundException("Folder", "id", folderId));
@@ -125,6 +128,12 @@ public class FolderServiceImpl implements FolderService {
 
             folders = folderRepository.findByUserAndParentFolderAndIsDeletedFalse(currentUser, folder);
             files = fileRepository.findByUserAndParentFolderAndIsDeletedFalse(currentUser, folder);
+            folderName = folder.getFolderName();
+
+            if (folder.getParentFolder() != null) {
+                parentFolderId = folder.getParentFolder().getId();
+                parentFolderName = folder.getParentFolder().getFolderName();
+            }
         }
 
         List<FolderResponse> folderResponses = folders.stream()
@@ -137,8 +146,14 @@ public class FolderServiceImpl implements FolderService {
 
         return FolderContentsResponse.builder()
                 .folderId(folderId)
+                .folderName(folderName)
+                .parentFolderId(parentFolderId)
+                .parentFolderName(parentFolderName)
                 .folders(folderResponses)
                 .files(fileResponses)
+                .folderCount(folderResponses.size())
+                .fileCount(fileResponses.size())
+                .totalItems(folderResponses.size() + fileResponses.size())
                 .build();
     }
 
@@ -195,6 +210,11 @@ public class FolderServiceImpl implements FolderService {
             }
 
             folder.setParentFolder(newParentFolder);
+        }
+
+        // Update favorite status if provided
+        if (folderUpdateRequest.getIsFavorite() != null) {
+            folder.setFavorite(folderUpdateRequest.getIsFavorite());
         }
 
         folder.setUpdatedAt(LocalDateTime.now());
@@ -386,10 +406,11 @@ public class FolderServiceImpl implements FolderService {
 
         // Determine new folder name (handle duplicates)
         String newFolderName = sourceFolder.getFolderName();
+        String finalNewFolderName = newFolderName;
         boolean nameExists = folderRepository.findByUserAndParentFolderAndIsDeletedFalse(
                         currentUser, destinationFolder)
                 .stream()
-                .anyMatch(f -> f.getFolderName().equals(newFolderName));
+                .anyMatch(f -> f.getFolderName().equals(finalNewFolderName));
 
         if (nameExists) {
             newFolderName = generateCopyName(newFolderName);
@@ -486,6 +507,17 @@ public class FolderServiceImpl implements FolderService {
         Collections.reverse(path);
 
         return path;
+    }
+
+    @Override
+    public List<FolderResponse> getFavoriteFolders() {
+        User currentUser = getCurrentUser();
+
+        List<Folder> favoriteFolders = folderRepository.findFavoriteFolders(currentUser);
+
+        return favoriteFolders.stream()
+                .map(this::mapFolderToFolderResponse)
+                .collect(Collectors.toList());
     }
 
     // Helper methods
@@ -613,10 +645,11 @@ public class FolderServiceImpl implements FolderService {
         for (File file : files) {
             // Determine if name needs to be modified
             String newFilename = file.getFilename();
+            String finalNewFilename = newFilename;
             boolean nameExists = fileRepository.findByUserAndParentFolderAndIsDeletedFalse(
                             currentUser, targetFolder)
                     .stream()
-                    .anyMatch(f -> f.getFilename().equals(newFilename));
+                    .anyMatch(f -> f.getFilename().equals(finalNewFilename));
 
             if (nameExists) {
                 newFilename = generateCopyName(newFilename);
@@ -649,10 +682,11 @@ public class FolderServiceImpl implements FolderService {
         for (Folder subfolder : subfolders) {
             // Determine if name needs to be modified
             String newFolderName = subfolder.getFolderName();
+            String finalNewFolderName = newFolderName;
             boolean nameExists = folderRepository.findByUserAndParentFolderAndIsDeletedFalse(
                             currentUser, targetFolder)
                     .stream()
-                    .anyMatch(f -> f.getFolderName().equals(newFolderName));
+                    .anyMatch(f -> f.getFolderName().equals(finalNewFolderName));
 
             if (nameExists) {
                 newFolderName = generateCopyName(newFolderName);
@@ -716,6 +750,8 @@ public class FolderServiceImpl implements FolderService {
                 .lastAccessed(folder.getLastAccessed())
                 .owner(folder.getUser().getUsername())
                 .ownerId(folder.getUser().getId())
+                .isFavorite(folder.isFavorite())
+                .hasSharedItems(folder.isShared())
                 .build();
     }
 
@@ -730,6 +766,7 @@ public class FolderServiceImpl implements FolderService {
                 .parentFolderId(file.getParentFolder() != null ? file.getParentFolder().getId() : null)
                 .parentFolderName(file.getParentFolder() != null ? file.getParentFolder().getFolderName() : null)
                 .isFavorite(file.isFavorite())
+                .isShared(file.isShared())
                 .createdAt(file.getCreatedAt())
                 .updatedAt(file.getUpdatedAt())
                 .lastAccessed(file.getLastAccessed())

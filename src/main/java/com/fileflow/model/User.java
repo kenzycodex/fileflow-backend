@@ -52,6 +52,16 @@ public class User {
 
     private String profileImagePath;
 
+    private boolean enabled;
+
+    private String verificationToken;
+
+    private LocalDateTime verificationTokenExpiry;
+
+    private String resetPasswordToken;
+
+    private LocalDateTime resetPasswordTokenExpiry;
+
     @CreationTimestamp
     private LocalDateTime createdAt;
 
@@ -69,6 +79,8 @@ public class User {
 
     private Long storageUsed;
 
+    private Long storageLimit;
+
     @Enumerated(EnumType.STRING)
     private Role role;
 
@@ -77,6 +89,20 @@ public class User {
 
     @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, orphanRemoval = true)
     private Set<Device> devices = new HashSet<>();
+
+    @ManyToMany(fetch = FetchType.EAGER)
+    @JoinTable(
+            name = "user_roles",
+            joinColumns = @JoinColumn(name = "user_id"),
+            inverseJoinColumns = @JoinColumn(name = "role_id")
+    )
+    private Set<Role> roles = new HashSet<>();
+
+    @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, orphanRemoval = true)
+    private Set<Folder> folders = new HashSet<>();
+
+    @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, orphanRemoval = true)
+    private Set<File> files = new HashSet<>();
 
     public enum Status {
         ACTIVE,

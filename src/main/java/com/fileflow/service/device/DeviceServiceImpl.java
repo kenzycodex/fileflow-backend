@@ -40,7 +40,7 @@ public class DeviceServiceImpl implements DeviceService {
         validatePageNumberAndSize(page, size);
 
         Pageable pageable = PageRequest.of(page, size, Sort.Direction.DESC, "lastActive");
-        Page<Device> devices = deviceRepository.findByUser(currentUser, pageable);
+        Page<Device> devices = (Page<Device>) deviceRepository.findByUser(currentUser, pageable);
 
         if (devices.getNumberOfElements() == 0) {
             return new PagedResponse<>(Collections.emptyList(), devices.getNumber(),

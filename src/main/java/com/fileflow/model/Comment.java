@@ -42,6 +42,9 @@ public class Comment {
     @UpdateTimestamp
     private LocalDateTime updatedAt;
 
+    @Column(columnDefinition = "boolean default false")
+    private boolean isEdited;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "parent_comment_id")
     private Comment parentComment;

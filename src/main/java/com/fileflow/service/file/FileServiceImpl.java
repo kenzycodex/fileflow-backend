@@ -21,7 +21,8 @@ import com.fileflow.repository.UserRepository;
 import com.fileflow.security.UserPrincipal;
 import com.fileflow.service.activity.ActivityService;
 import com.fileflow.service.quota.QuotaService;
-import com.fileflow.service.storage.StorageService;
+import com.fileflow.service.storage.EnhancedStorageService;
+import com.fileflow.service.storage.StorageServiceFactory;
 import com.fileflow.util.Constants;
 import com.fileflow.util.FileUtils;
 import lombok.RequiredArgsConstructor;
@@ -31,6 +32,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
@@ -39,20 +41,13 @@ import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 
 import java.io.IOException;
-import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.time.LocalDateTime;
 import java.util.Comparator;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
 @Service
-@RequiredArgsConstructor
 @Slf4j
 public class FileServiceImpl implements FileService {
 
@@ -60,12 +55,26 @@ public class FileServiceImpl implements FileService {
     private final FolderRepository folderRepository;
     private final UserRepository userRepository;
     private final StorageChunkRepository storageChunkRepository;
-    private final StorageService storageService;
+    private final EnhancedStorageService storageService;
     private final ActivityService activityService;
     private final QuotaService quotaService;
 
-    // In-memory store for chunked uploads (should be replaced with Redis in production)
-    private final Map<String, List<StorageChunk>> chunkedUploads = new HashMap<>();
+    public FileServiceImpl(
+            FileRepository fileRepository,
+            FolderRepository folderRepository,
+            UserRepository userRepository,
+            StorageChunkRepository storageChunkRepository,
+            StorageServiceFactory storageServiceFactory,
+            ActivityService activityService,
+            QuotaService quotaService) {
+        this.fileRepository = fileRepository;
+        this.folderRepository = folderRepository;
+        this.userRepository = userRepository;
+        this.storageChunkRepository = storageChunkRepository;
+        this.storageService = storageServiceFactory.getStorageService();
+        this.activityService = activityService;
+        this.quotaService = quotaService;
+    }
 
     @Override
     @Transactional
@@ -96,6 +105,19 @@ public class FileServiceImpl implements FileService {
         String originalFilename = FileUtils.sanitizeFilename(file.getOriginalFilename());
         String uniqueFilename = FileUtils.generateUniqueFilename(originalFilename);
 
+        // Check for duplicate filename in the same folder if overwrite not specified
+        if (uploadRequest.getOverwrite() == null || !uploadRequest.getOverwrite()) {
+            String finalOriginalFilename = originalFilename;
+            boolean fileExists = fileRepository.findByUserAndParentFolderAndIsDeletedFalse(currentUser, parentFolder)
+                    .stream()
+                    .anyMatch(f -> f.getFilename().equals(finalOriginalFilename));
+
+            if (fileExists) {
+                // Generate a new name to avoid duplication
+                originalFilename = generateCopyName(originalFilename);
+            }
+        }
+
         // Determine storage directory (user-specific)
         String storageDir = "users/" + currentUser.getId();
 
@@ -103,7 +125,17 @@ public class FileServiceImpl implements FileService {
         String storagePath = storageService.store(file, uniqueFilename, storageDir);
 
         // Generate checksum for deduplication
-        String checksum = generateChecksum(file);
+        String checksum = storageService.computeHash(file);
+
+        // Check for deduplication if enabled
+        if (checksum != null) {
+            List<File> existingFiles = fileRepository.findByUserAndChecksum(currentUser, checksum);
+            if (!existingFiles.isEmpty()) {
+                log.info("Duplicate file detected for user {}: {}", currentUser.getId(), originalFilename);
+                // We could reuse the existing file's storage path here to save space
+                // For now, we'll keep the new copy but log the duplication
+            }
+        }
 
         // Determine file type
         String fileType = FileUtils.determineFileType(originalFilename);
@@ -111,7 +143,7 @@ public class FileServiceImpl implements FileService {
         // Create file record in database
         File fileEntity = File.builder()
                 .filename(originalFilename)
-                .originalFilename(originalFilename)
+                .originalFilename(file.getOriginalFilename())
                 .storagePath(storagePath)
                 .fileSize(fileSize)
                 .fileType(fileType)
@@ -128,7 +160,7 @@ public class FileServiceImpl implements FileService {
         File savedFile = fileRepository.save(fileEntity);
 
         // Update user's storage usage
-        quotaService.updateStorageUsed(currentUser.getId(), fileSize);
+        quotaService.confirmQuotaUsage(currentUser.getId(), fileSize);
 
         // Log activity
         activityService.logActivity(
@@ -138,6 +170,9 @@ public class FileServiceImpl implements FileService {
                 savedFile.getId(),
                 "Uploaded file: " + savedFile.getFilename()
         );
+
+        // Asynchronously generate thumbnail and preview
+        generateThumbnailAndPreviewAsync(savedFile);
 
         // Create download URL
         String downloadUrl = ServletUriComponentsBuilder.fromCurrentContextPath()
@@ -189,19 +224,23 @@ public class FileServiceImpl implements FileService {
                 storageDir
         );
 
+        // Calculate expiry time for chunks (1 hour from now)
+        LocalDateTime expiryTime = LocalDateTime.now().plusHours(1);
+
         // Create or update chunk record
         StorageChunk chunk = StorageChunk.builder()
-                .chunkNumber(chunkRequest.getChunkNumber())
                 .uploadId(chunkRequest.getUploadId())
+                .chunkNumber(chunkRequest.getChunkNumber())
+                .totalChunks(chunkRequest.getTotalChunks())
                 .userId(currentUser.getId())
                 .originalFilename(chunkRequest.getOriginalFilename())
                 .storagePath(chunkPath)
                 .chunkSize(chunkFile.getSize())
                 .totalSize(chunkRequest.getTotalSize())
-                .totalChunks(chunkRequest.getTotalChunks())
                 .mimeType(chunkFile.getContentType())
                 .parentFolderId(chunkRequest.getFolderId())
                 .createdAt(LocalDateTime.now())
+                .expiresAt(expiryTime)
                 .build();
 
         storageChunkRepository.save(chunk);
@@ -209,10 +248,15 @@ public class FileServiceImpl implements FileService {
         // Check if this is the last chunk
         if (chunkRequest.getChunkNumber() == chunkRequest.getTotalChunks() - 1) {
             // Complete the upload asynchronously
+            completeChunkedUploadAsync(chunkRequest.getUploadId());
+
             return ApiResponse.builder()
                     .success(true)
                     .message("All chunks received, processing file")
-                    .data(Map.of("uploadId", chunkRequest.getUploadId(), "complete", true))
+                    .data(java.util.Map.of(
+                            "uploadId", chunkRequest.getUploadId(),
+                            "complete", true
+                    ))
                     .timestamp(LocalDateTime.now())
                     .build();
         }
@@ -220,9 +264,21 @@ public class FileServiceImpl implements FileService {
         return ApiResponse.builder()
                 .success(true)
                 .message("Chunk received")
-                .data(Map.of("uploadId", chunkRequest.getUploadId(), "complete", false))
+                .data(java.util.Map.of(
+                        "uploadId", chunkRequest.getUploadId(),
+                        "complete", false
+                ))
                 .timestamp(LocalDateTime.now())
                 .build();
+    }
+
+    @Async
+    protected void completeChunkedUploadAsync(String uploadId) {
+        try {
+            completeChunkedUpload(uploadId);
+        } catch (Exception e) {
+            log.error("Error completing chunked upload: {}", uploadId, e);
+        }
     }
 
     @Override
@@ -231,8 +287,7 @@ public class FileServiceImpl implements FileService {
         User currentUser = getCurrentUser();
 
         // Get all chunks for this upload
-        List<StorageChunk> chunks = storageChunkRepository.findByUploadIdAndUserId(
-                uploadId, currentUser.getId());
+        List<StorageChunk> chunks = storageChunkRepository.findByUploadIdAndUserId(uploadId, currentUser.getId());
 
         if (chunks.isEmpty()) {
             throw new ResourceNotFoundException("Upload", "id", uploadId);
@@ -307,6 +362,9 @@ public class FileServiceImpl implements FileService {
 
         // Clean up chunks
         deleteChunks(chunks);
+
+        // Asynchronously generate thumbnail and preview
+        generateThumbnailAndPreviewAsync(savedFile);
 
         // Create download URL
         String downloadUrl = ServletUriComponentsBuilder.fromCurrentContextPath()
@@ -519,6 +577,7 @@ public class FileServiceImpl implements FileService {
         // Get file info for logging
         String filename = file.getFilename();
         long fileSize = file.getFileSize();
+        String storagePath = file.getStoragePath();
 
         // Delete file from database
         fileRepository.delete(file);
@@ -535,8 +594,11 @@ public class FileServiceImpl implements FileService {
                 "Permanently deleted file: " + filename
         );
 
-        // Don't delete from storage immediately (scheduled task will clean up)
-        // This prevents deletion of files that might be referenced by other users (deduplication)
+        // Check if any other files reference the same storage path (deduplication)
+        if (!fileRepository.existsByStoragePath(storagePath)) {
+            // If no other file references this storage path, delete the file from storage
+            storageService.delete(storagePath);
+        }
 
         return ApiResponse.builder()
                 .success(true)
@@ -613,10 +675,11 @@ public class FileServiceImpl implements FileService {
 
         // Determine new filename (handle duplicates)
         String newFilename = sourceFile.getFilename();
+        String finalNewFilename = newFilename;
         boolean nameExists = fileRepository.findByUserAndParentFolderAndIsDeletedFalse(
                         currentUser, destinationFolder)
                 .stream()
-                .anyMatch(f -> f.getFilename().equals(newFilename));
+                .anyMatch(f -> f.getFilename().equals(finalNewFilename));
 
         if (nameExists) {
             newFilename = generateCopyName(newFilename);
@@ -755,6 +818,7 @@ public class FileServiceImpl implements FileService {
                 // Keep track of user and file size for quota update
                 Long userId = file.getUser().getId();
                 Long fileSize = file.getFileSize();
+                String storagePath = file.getStoragePath();
 
                 // Delete from database
                 fileRepository.delete(file);
@@ -763,8 +827,8 @@ public class FileServiceImpl implements FileService {
                 quotaService.releaseStorage(userId, fileSize);
 
                 // Only delete from storage if no other files are using the same storage path
-                if (!fileRepository.existsByStoragePath(file.getStoragePath())) {
-                    storageService.delete(file.getStoragePath());
+                if (!fileRepository.existsByStoragePath(storagePath)) {
+                    storageService.delete(storagePath);
                 }
 
                 count++;
@@ -779,23 +843,24 @@ public class FileServiceImpl implements FileService {
 
     // Helper methods
 
-    private String generateChecksum(MultipartFile file) {
+    @Async
+    protected void generateThumbnailAndPreviewAsync(File file) {
         try {
-            MessageDigest digest = MessageDigest.getInstance("SHA-256");
-            byte[] hash = digest.digest(file.getBytes());
-
-            // Convert to hex string
-            StringBuilder hexString = new StringBuilder();
-            for (byte b : hash) {
-                String hex = Integer.toHexString(0xff & b);
-                if (hex.length() == 1) hexString.append('0');
-                hexString.append(hex);
+            if (file == null || file.getStoragePath() == null) {
+                return;
             }
 
-            return hexString.toString();
-        } catch (NoSuchAlgorithmException | IOException e) {
-            log.error("Error generating checksum", e);
-            return null;
+            // Generate thumbnail
+            String thumbnailPath = storageService.generateThumbnail(
+                    file.getStoragePath(), file.getFileType(), file.getMimeType());
+
+            // Generate preview
+            String previewPath = storageService.generatePreview(
+                    file.getStoragePath(), file.getFileType(), file.getMimeType());
+
+            log.debug("Generated thumbnail and preview for file: {}", file.getId());
+        } catch (Exception e) {
+            log.error("Error generating thumbnail/preview for file: {}", file.getId(), e);
         }
     }
 
@@ -849,6 +914,16 @@ public class FileServiceImpl implements FileService {
                 .path(file.getId().toString())
                 .toUriString();
 
+        // Generate thumbnail URL if applicable
+        String thumbnailUrl = null;
+        if (file.getFileType() != null &&
+                (file.getFileType().equals("image") || file.getFileType().equals("video"))) {
+            thumbnailUrl = ServletUriComponentsBuilder.fromCurrentContextPath()
+                    .path("/api/v1/files/thumbnail/")
+                    .path(file.getId().toString())
+                    .toUriString();
+        }
+
         return FileResponse.builder()
                 .id(file.getId())
                 .filename(file.getFilename())
@@ -859,7 +934,9 @@ public class FileServiceImpl implements FileService {
                 .parentFolderId(file.getParentFolder() != null ? file.getParentFolder().getId() : null)
                 .parentFolderName(file.getParentFolder() != null ? file.getParentFolder().getFolderName() : null)
                 .isFavorite(file.isFavorite())
+                .isShared(file.isShared())
                 .downloadUrl(downloadUrl)
+                .thumbnailUrl(thumbnailUrl)
                 .createdAt(file.getCreatedAt())
                 .updatedAt(file.getUpdatedAt())
                 .lastAccessed(file.getLastAccessed())

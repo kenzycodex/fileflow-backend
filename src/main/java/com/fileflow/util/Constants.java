@@ -57,10 +57,22 @@ public final class Constants {
     public static final String ITEM_TYPE_COMMENT = "COMMENT";
     public static final String ITEM_TYPE_DEVICE = "DEVICE";
 
+    // Roles
+    public static final String ROLE_USER = "ROLE_USER";
+    public static final String ROLE_ADMIN = "ROLE_ADMIN";
+
+    // Storage constants
+    public static final long MAX_FILE_SIZE = 100 * 1024 * 1024; // 100MB
+
     // Share Permission Types
     public static final String PERMISSION_VIEW = "VIEW";
     public static final String PERMISSION_EDIT = "EDIT";
     public static final String PERMISSION_COMMENT = "COMMENT";
+
+    // Security
+    public static final long ACCESS_TOKEN_VALIDITY_SECONDS = 30 * 24 * 60 * 60; // 30 days
+    public static final String TOKEN_PREFIX = "Bearer ";
+    public static final String HEADER_STRING = "Authorization";
 
     private Constants() {
         // Private constructor to prevent instantiation

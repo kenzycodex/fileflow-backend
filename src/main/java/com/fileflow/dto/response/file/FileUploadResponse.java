@@ -20,4 +20,5 @@ public class FileUploadResponse {
     private String mimeType;
     private Long parentFolderId;
     private String downloadUrl;
+    private String thumbnailUrl;
 }

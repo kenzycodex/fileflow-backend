@@ -9,6 +9,9 @@ import org.hibernate.annotations.CreationTimestamp;
 import jakarta.persistence.*;
 import java.time.LocalDateTime;
 
+/**
+ * Entity representing a relationship between a file and a tag
+ */
 @Data
 @Entity
 @Table(name = "file_tags",

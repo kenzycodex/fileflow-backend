@@ -1,0 +1,62 @@
+version: '3.8'
+
+# Development dependencies only (MySQL, MinIO, Elasticsearch)
+# The application will run directly on the host machine
+
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: fileflow-mysql-dev
+    ports:
+      - "3306:3306"
+    environment:
+      - MYSQL_ROOT_PASSWORD=password
+      - MYSQL_DATABASE=fileflow
+    volumes:
+      - mysql-data-dev:/var/lib/mysql
+    networks:
+      - fileflow-network-dev
+    restart: unless-stopped
+    command: --default-authentication-plugin=mysql_native_password
+
+  minio:
+    image: minio/minio:latest
+    container_name: fileflow-minio-dev
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    environment:
+      - MINIO_ROOT_USER=minioadmin
+      - MINIO_ROOT_PASSWORD=minioadmin
+    volumes:
+      - minio-data-dev:/data
+    command: server /data --console-address ":9001"
+    networks:
+      - fileflow-network-dev
+    restart: unless-stopped
+
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:7.17.0
+    container_name: fileflow-elasticsearch-dev
+    environment:
+      - discovery.type=single-node
+      - bootstrap.memory_lock=true
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+      - xpack.security.enabled=false
+    ports:
+      - "9200:9200"
+      - "9300:9300"
+    volumes:
+      - elasticsearch-data-dev:/usr/share/elasticsearch/data
+    networks:
+      - fileflow-network-dev
+    restart: unless-stopped
+
+networks:
+  fileflow-network-dev:
+    driver: bridge
+
+volumes:
+  mysql-data-dev:
+  minio-data-dev:
+  elasticsearch-data-dev:

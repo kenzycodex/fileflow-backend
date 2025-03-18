@@ -10,6 +10,9 @@ import lombok.NoArgsConstructor;
 
 import java.util.List;
 
+/**
+ * DTO for search results
+ */
 @Data
 @Builder
 @NoArgsConstructor

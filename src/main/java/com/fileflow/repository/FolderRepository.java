@@ -33,4 +33,17 @@ public interface FolderRepository extends JpaRepository<Folder, Long> {
 
     @Query("SELECT f FROM Folder f WHERE f.user = :user AND f.isDeleted = false ORDER BY f.lastAccessed DESC NULLS LAST")
     Page<Folder> findRecentFolders(@Param("user") User user, Pageable pageable);
+
+    @Query("SELECT f FROM Folder f WHERE f.user = :user AND f.isDeleted = false ORDER BY f.lastAccessed DESC NULLS LAST")
+    List<Folder> findRecentFolders(@Param("user") User user);
+
+    @Query("SELECT f FROM Folder f WHERE f.user = :user AND f.isFavorite = true AND f.isDeleted = false")
+    Page<Folder> findFavoriteFolders(@Param("user") User user, Pageable pageable);
+
+    @Query("SELECT f FROM Folder f WHERE f.user = :user AND f.isFavorite = true AND f.isDeleted = false")
+    List<Folder> findFavoriteFolders(@Param("user") User user);
+
+    // Add this method to search deleted folders by name
+    @Query("SELECT f FROM Folder f WHERE f.user = :user AND f.isDeleted = true AND lower(f.folderName) LIKE lower(concat('%', :keyword, '%'))")
+    Page<Folder> searchDeletedByFolderName(@Param("user") User user, @Param("keyword") String keyword, Pageable pageable);
 }

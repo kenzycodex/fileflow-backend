@@ -73,4 +73,9 @@ public interface FolderService {
      * Get folder path (breadcrumbs)
      */
     List<FolderResponse> getFolderPath(Long folderId);
+
+    /**
+     * Get favorite folders
+     */
+    List<FolderResponse> getFavoriteFolders();
 }

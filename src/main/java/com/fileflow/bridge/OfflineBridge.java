@@ -44,12 +44,12 @@ public class OfflineBridge {
 
             // Create sync queue entry
             SyncQueue syncQueue = SyncQueue.builder()
-                    .user(currentUser)
+                    .userId(currentUser.getId())  // Use userId instead of user
                     .actionType(actionType)
                     .itemType(itemType)
                     .itemId(itemId)
-                    .status("PENDING")
-                    .createdAt(LocalDateTime.now())
+                    .status(SyncQueue.Status.PENDING)  // Use enum value
+                    .created_at(LocalDateTime.now())
                     .dataPayload(data != null ? data.toString() : null)
                     .build();
 
@@ -82,7 +82,8 @@ public class OfflineBridge {
     public List<SyncQueue> getPendingSyncOperations() {
         User currentUser = getCurrentUser();
 
-        return syncQueueRepository.findByUserAndStatus(currentUser, "PENDING");
+        // Use findByUserIdAndStatus instead of findByUserAndStatus
+        return syncQueueRepository.findByUserIdAndStatus(currentUser.getId(), SyncQueue.Status.PENDING);
     }
 
     /**
@@ -94,7 +95,8 @@ public class OfflineBridge {
         try {
             User currentUser = getCurrentUser();
 
-            List<SyncQueue> pendingOperations = syncQueueRepository.findByUserAndStatus(currentUser, "PENDING");
+            // Use findByUserIdAndStatus instead of findByUserAndStatus
+            List<SyncQueue> pendingOperations = syncQueueRepository.findByUserIdAndStatus(currentUser.getId(), SyncQueue.Status.PENDING);
 
             int processed = 0;
             int failed = 0;
@@ -105,7 +107,7 @@ public class OfflineBridge {
                     // Implementation depends on specific action types
 
                     // Mark as processed
-                    operation.setStatus("COMPLETED");
+                    operation.setStatus(SyncQueue.Status.COMPLETED);  // Use enum value
                     operation.setProcessedAt(LocalDateTime.now());
                     syncQueueRepository.save(operation);
 
@@ -114,7 +116,7 @@ public class OfflineBridge {
                     log.error("Error processing sync operation: {}", operation.getId(), e);
 
                     // Mark as failed
-                    operation.setStatus("FAILED");
+                    operation.setStatus(SyncQueue.Status.FAILED);  // Use enum value
                     operation.setRetryCount(operation.getRetryCount() + 1);
                     syncQueueRepository.save(operation);
 

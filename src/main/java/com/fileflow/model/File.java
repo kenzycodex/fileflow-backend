@@ -9,6 +9,7 @@ import org.hibernate.annotations.UpdateTimestamp;
 
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import java.time.LocalDateTime;
 import java.util.HashSet;
@@ -43,6 +44,9 @@ public class File {
 
     @Size(max = 100)
     private String fileType;
+
+    @Column(columnDefinition = "boolean default false")
+    private boolean isShared;
 
     @Size(max = 255)
     private String mimeType;

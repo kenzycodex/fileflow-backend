@@ -56,7 +56,7 @@ public class SyncServiceImpl implements SyncService {
                 .platform(platform)
                 .lastSyncDate(null)
                 .pushToken(null)
-                .created_at(LocalDateTime.now())
+                .createdAt(LocalDateTime.now())
                 .lastActive(LocalDateTime.now())
                 .build();
 

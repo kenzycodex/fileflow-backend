@@ -110,4 +110,23 @@ public class FolderController {
     public ResponseEntity<List<FolderResponse>> getFolderPath(@PathVariable Long folderId) {
         return ResponseEntity.ok(folderService.getFolderPath(folderId));
     }
+
+    @PostMapping("/{folderId}/favorite")
+    @Operation(summary = "Toggle favorite status for a folder")
+    public ResponseEntity<FolderResponse> toggleFavorite(
+            @PathVariable Long folderId,
+            @RequestParam boolean favorite) {
+        FolderUpdateRequest request = FolderUpdateRequest.builder()
+                .isFavorite(favorite)
+                .build();
+        return ResponseEntity.ok(folderService.updateFolder(folderId, request));
+    }
+
+    @GetMapping("/favorites")
+    @Operation(summary = "Get favorite folders")
+    public ResponseEntity<List<FolderResponse>> getFavoriteFolders() {
+        // This endpoint could be added to the service, but we can use the existing
+        // folderRepository.findFavoriteFolders() method in a new service method
+        return ResponseEntity.ok(folderService.getFavoriteFolders());
+    }
 }

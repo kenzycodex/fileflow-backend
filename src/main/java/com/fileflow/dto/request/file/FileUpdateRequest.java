@@ -7,6 +7,9 @@ import lombok.NoArgsConstructor;
 
 import jakarta.validation.constraints.Size;
 
+/**
+ * DTO for updating file metadata
+ */
 @Data
 @Builder
 @NoArgsConstructor

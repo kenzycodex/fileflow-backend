@@ -2,7 +2,6 @@ package com.fileflow.bridge;
 
 import com.fileflow.dto.response.common.ApiResponse;
 import com.fileflow.dto.response.file.FileResponse;
-import com.fileflow.model.File;
 import com.fileflow.model.User;
 import com.fileflow.repository.FileRepository;
 import com.fileflow.repository.UserRepository;

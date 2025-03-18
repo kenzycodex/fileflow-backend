@@ -54,4 +54,10 @@ public class Folder {
 
     @OneToMany(mappedBy = "parentFolder", cascade = CascadeType.ALL, orphanRemoval = true)
     private Set<File> files = new HashSet<>();
+
+    @Column(columnDefinition = "boolean default false")
+    private boolean isFavorite;
+
+    @Column(columnDefinition = "boolean default false")
+    private boolean isShared;
 }

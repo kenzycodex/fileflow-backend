@@ -23,8 +23,9 @@ public class FileResponse {
     private Long parentFolderId;
     private String parentFolderName;
     private boolean isFavorite;
+    private boolean isShared;
     private String downloadUrl;
-    private String thumbnail;
+    private String thumbnailUrl;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
     private LocalDateTime lastAccessed;
