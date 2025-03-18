@@ -4,90 +4,108 @@ import org.springframework.core.io.Resource;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.file.Path;
 import java.util.stream.Stream;
 
+/**
+ * Base interface for storage services with basic file operations
+ */
 public interface StorageService {
     /**
-     * Initialize storage
+     * Initialize the storage service
      */
     void init();
 
     /**
-     * Store a file
+     * Store a file with a generated filename in the default directory
      *
-     * @param file the file to store
-     * @param directory optional subdirectory
-     * @return the stored file path/id
+     * @param file The file to store
+     * @param directory The directory to store the file in
+     * @return The path of the stored file
+     * @throws IOException If an error occurs during storage
      */
     String store(MultipartFile file, String directory) throws IOException;
 
     /**
-     * Store a file with specific name
+     * Store a file with a specific filename in a specified directory
      *
-     * @param file the file to store
-     * @param filename the filename to use
-     * @param directory optional subdirectory
-     * @return the stored file path/id
+     * @param file The file to store
+     * @param filename The name to use for the file
+     * @param directory The directory to store the file in
+     * @return The path of the stored file
+     * @throws IOException If an error occurs during storage
      */
     String store(MultipartFile file, String filename, String directory) throws IOException;
 
     /**
-     * Load a file as a Resource
+     * Store a file from an InputStream with specific filename in a specified directory
      *
-     * @param filename the filename to load
-     * @return the file resource
+     * @param inputStream The input stream of the file
+     * @param contentLength The length of the content in bytes
+     * @param filename The name to use for the file
+     * @param directory The directory to store the file in
+     * @return The path of the stored file
+     * @throws IOException If an error occurs during storage
+     */
+    String store(InputStream inputStream, int contentLength, String filename, String directory) throws IOException;
+
+    /**
+     * Load a file as a resource
+     *
+     * @param filename The name of the file to load
+     * @return The file as a Resource
      */
     Resource loadAsResource(String filename);
 
     /**
-     * Generate a pre-signed URL for temporary access
+     * Generate a pre-signed URL for accessing a file
      *
-     * @param filename the filename
-     * @param expiryTimeInMinutes expiry time in minutes
-     * @return the pre-signed URL
+     * @param filename The name of the file
+     * @param expiryTimeInMinutes Expiration time for the URL
+     * @return Pre-signed URL
      */
     String generatePresignedUrl(String filename, int expiryTimeInMinutes);
 
     /**
      * Delete a file
      *
-     * @param filename the filename to delete
-     * @return true if deleted successfully
+     * @param filename The name of the file to delete
+     * @return true if deletion was successful, false otherwise
      */
     boolean delete(String filename);
 
     /**
-     * List all files in storage or directory
+     * List all files in a directory
      *
-     * @param directory optional directory to list
-     * @return stream of paths
+     * @param directory The directory to list files from
+     * @return Stream of file paths
      */
     Stream<Path> loadAll(String directory);
 
     /**
      * Check if a file exists
      *
-     * @param filename the filename to check
-     * @return true if exists
+     * @param filename The name of the file to check
+     * @return true if the file exists, false otherwise
      */
     boolean exists(String filename);
 
     /**
      * Copy a file
      *
-     * @param source source filename
-     * @param destination destination filename
-     * @return true if copied successfully
+     * @param source The source file path
+     * @param destination The destination file path
+     * @return true if copying was successful, false otherwise
      */
     boolean copy(String source, String destination);
 
     /**
      * Move a file
      *
-     * @param source source filename
-     * @param destination destination filename
-     * @return true if moved successfully
+     * @param source The source file path
+     * @param destination The destination file path
+     * @return true if moving was successful, false otherwise
      */
     boolean move(String source, String destination);
 }

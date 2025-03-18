@@ -80,8 +80,8 @@ public class VersioningServiceImpl implements VersioningService {
                 .storagePath(originalStoragePath)
                 .versionNumber(nextVersionNumber)
                 .fileSize(fileEntity.getFileSize())
-                .created_at(LocalDateTime.now())
-                .created_by(currentUser)
+                .createdAt(LocalDateTime.now())
+                .createdBy(currentUser)
                 .comment(comment)
                 .build();
 
@@ -172,8 +172,8 @@ public class VersioningServiceImpl implements VersioningService {
                 .storagePath(fileEntity.getStoragePath())
                 .versionNumber(getNextVersionNumber(fileId))
                 .fileSize(fileEntity.getFileSize())
-                .created_at(LocalDateTime.now())
-                .created_by(currentUser)
+                .createdAt(LocalDateTime.now())
+                .createdBy(currentUser)
                 .comment("Automatic version before restoring to version " + version.getVersionNumber())
                 .build();
 
@@ -335,9 +335,9 @@ public class VersioningServiceImpl implements VersioningService {
                 .fileId(version.getFile().getId())
                 .versionNumber(version.getVersionNumber())
                 .fileSize(version.getFileSize())
-                .createdAt(version.getCreated_at())
-                .createdBy(version.getCreated_by().getUsername())
-                .createdById(version.getCreated_by().getId())
+                .createdAt(version.getCreatedAt())
+                .createdBy(version.getCreatedBy().getUsername())
+                .createdById(version.getCreatedBy().getId())
                 .comment(version.getComment())
                 .downloadUrl(downloadUrl)
                 .build();

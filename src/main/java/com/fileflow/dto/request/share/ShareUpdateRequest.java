@@ -1,9 +1,6 @@
 package com.fileflow.dto.request.share;
 
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Data;
-import lombok.NoArgsConstructor;
+import lombok.*;
 
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.Size;
@@ -24,6 +21,7 @@ public class ShareUpdateRequest {
 
     private LocalDateTime expiryDate;
 
+    @Getter
     private Boolean isPasswordProtected;
 
     private String password;

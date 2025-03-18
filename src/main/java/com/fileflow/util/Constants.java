@@ -14,6 +14,11 @@ public final class Constants {
     // Trash Settings
     public static final int TRASH_RETENTION_DAYS = 30;
 
+    // Version-related Activity Constants
+    public static final String ACTIVITY_CREATE_VERSION = "CREATE_VERSION";
+    public static final String ACTIVITY_RESTORE_VERSION = "RESTORE_VERSION";
+    public static final String ACTIVITY_DELETE_VERSION = "DELETE_VERSION";
+
     // Pagination Defaults
     public static final int DEFAULT_PAGE_SIZE = 20;
     public static final int MAX_PAGE_SIZE = 100;

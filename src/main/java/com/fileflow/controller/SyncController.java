@@ -107,7 +107,7 @@ public class SyncController {
                 .platform(device.getPlatform())
                 .lastSyncDate(device.getLastSyncDate())
                 .lastActive(device.getLastActive())
-                .createdAt(device.getCreated_at())
+                .createdAt(device.getCreatedAt())
                 .build();
     }
 }

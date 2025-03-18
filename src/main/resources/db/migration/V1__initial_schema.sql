@@ -75,6 +75,7 @@ CREATE TABLE files (
     filename VARCHAR(255) NOT NULL,
     original_filename VARCHAR(255),
     storage_path VARCHAR(1000),
+    thumbnail_path VARCHAR(1000),
     file_size BIGINT,
     file_type VARCHAR(100),
     mime_type VARCHAR(255),

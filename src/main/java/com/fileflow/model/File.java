@@ -9,7 +9,6 @@ import org.hibernate.annotations.UpdateTimestamp;
 
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import java.time.LocalDateTime;
 import java.util.HashSet;
@@ -39,6 +38,9 @@ public class File {
 
     @Size(max = 1000)
     private String storagePath;
+
+    @Size(max = 1000)
+    private String thumbnailPath;
 
     private Long fileSize;
 

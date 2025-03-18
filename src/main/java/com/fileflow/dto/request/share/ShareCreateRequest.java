@@ -35,5 +35,6 @@ public class ShareCreateRequest {
 
     private boolean passwordProtected;
 
+    @Size(min = 4, max = 50, message = "Password must be between 4 and 50 characters")
     private String password;
 }

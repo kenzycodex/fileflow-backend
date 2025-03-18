@@ -36,7 +36,6 @@ import java.time.LocalDateTime;
 import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
-import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -181,8 +180,8 @@ public class ShareServiceImpl implements ShareService {
         }
 
         // Update password protection if provided
-        if (shareUpdateRequest.isPasswordProtected() != null) {
-            share.setPasswordProtected(shareUpdateRequest.isPasswordProtected());
+        if (shareUpdateRequest.getIsPasswordProtected() != null) { // Use getter method
+            share.setPasswordProtected(shareUpdateRequest.getIsPasswordProtected());
 
             // Update password if provided and protection is enabled
             if (share.isPasswordProtected() && shareUpdateRequest.getPassword() != null &&

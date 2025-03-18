@@ -103,6 +103,22 @@ public class LocalEnhancedStorageService implements EnhancedStorageService {
     }
 
     @Override
+    public String store(InputStream inputStream, int contentLength, String filename, String directory) throws IOException {
+        if (inputStream == null) {
+            throw new StorageException("Failed to store file from null input stream");
+        }
+
+        String sanitizedFilename = FileUtils.sanitizeFilename(filename);
+        Path targetLocation = getTargetLocation(directory, sanitizedFilename);
+
+        Files.copy(inputStream, targetLocation, StandardCopyOption.REPLACE_EXISTING);
+        log.debug("File stored from input stream at: {}", targetLocation);
+
+        // Return the path relative to the root location
+        return getRelativePath(directory, sanitizedFilename);
+    }
+
+    @Override
     public Resource loadAsResource(String filename) {
         try {
             Path file = rootLocation.resolve(filename);

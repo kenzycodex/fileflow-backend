@@ -1,72 +1,61 @@
 package com.fileflow.service.storage;
 
-import com.fileflow.config.StorageConfig;
 import com.fileflow.exception.StorageException;
 import com.fileflow.model.StorageChunk;
 import com.fileflow.util.FileUtils;
 import io.minio.*;
-import io.minio.errors.*;
 import io.minio.http.Method;
+import io.minio.messages.Item;
+import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.io.FilenameUtils;
+import org.apache.commons.io.IOUtils;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Profile;
 import org.springframework.core.io.ByteArrayResource;
-import org.springframework.core.io.InputStreamResource;
 import org.springframework.core.io.Resource;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
-import jakarta.annotation.PostConstruct;
-import java.io.*;
-import java.nio.file.Files;
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.nio.file.StandardCopyOption;
-import java.security.InvalidKeyException;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.Comparator;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
+import java.util.stream.StreamSupport;
 
-/**
- * Implementation of EnhancedStorageService using MinIO object storage
- */
 @Service
-@Profile("minio")
+@Profile("prod")
 @RequiredArgsConstructor
 @Slf4j
 public class MinioEnhancedStorageService implements EnhancedStorageService {
 
     private final MinioClient minioClient;
-    private final StorageConfig storageConfig;
 
-    // The bucket name to use for file storage
+    @Value("${app.minio.bucket}")
     private String bucketName;
 
-    // Temporary directory for processing files
-    private final Path tempDir = Paths.get(System.getProperty("java.io.tmpdir"), "fileflow-temp");
+    @Value("${app.minio.previews-prefix:previews/}")
+    private String previewsPrefix;
 
-    // Buffer size for file operations
-    private static final int BUFFER_SIZE = 8192;
+    @Value("${app.minio.thumbnails-prefix:thumbnails/}")
+    private String thumbnailsPrefix;
+
+    @Value("${app.minio.temp-prefix:temp/}")
+    private String tempPrefix;
 
     @PostConstruct
     @Override
     public void init() {
         try {
-            // Create temp directory if it doesn't exist
-            if (!Files.exists(tempDir)) {
-                Files.createDirectories(tempDir);
-            }
-
-            // Set bucket name from config
-            this.bucketName = System.getProperty("app.minio.bucket", "fileflow");
-
-            // Check if bucket exists, create if it doesn't
             boolean bucketExists = minioClient.bucketExists(BucketExistsArgs.builder()
                     .bucket(bucketName)
                     .build());
@@ -75,11 +64,8 @@ public class MinioEnhancedStorageService implements EnhancedStorageService {
                 minioClient.makeBucket(MakeBucketArgs.builder()
                         .bucket(bucketName)
                         .build());
-
                 log.info("Created MinIO bucket: {}", bucketName);
             }
-
-            log.info("MinIO storage initialized with bucket: {}", bucketName);
         } catch (Exception e) {
             throw new StorageException("Could not initialize MinIO storage", e);
         }
@@ -96,25 +82,17 @@ public class MinioEnhancedStorageService implements EnhancedStorageService {
             throw new StorageException("Failed to store empty file " + filename);
         }
 
-        String objectName = getObjectName(directory, filename);
+        String sanitizedFilename = FileUtils.sanitizeFilename(filename);
+        String objectName = getObjectName(directory, sanitizedFilename);
 
-        try {
-            // Set content type metadata
-            Map<String, String> headers = new HashMap<>();
-            if (file.getContentType() != null) {
-                headers.put("Content-Type", file.getContentType());
-            }
+        try (InputStream inputStream = file.getInputStream()) {
+            minioClient.putObject(PutObjectArgs.builder()
+                    .bucket(bucketName)
+                    .object(objectName)
+                    .contentType(file.getContentType())
+                    .stream(inputStream, file.getSize(), -1)
+                    .build());
 
-            // Upload to MinIO
-            minioClient.putObject(
-                    PutObjectArgs.builder()
-                            .bucket(bucketName)
-                            .object(objectName)
-                            .stream(file.getInputStream(), file.getSize(), -1)
-                            .headers(headers)
-                            .build());
-
-            log.info("Stored file in MinIO: {}", objectName);
             return objectName;
         } catch (Exception e) {
             throw new StorageException("Failed to store file " + filename, e);
@@ -122,17 +100,36 @@ public class MinioEnhancedStorageService implements EnhancedStorageService {
     }
 
     @Override
+    public String store(InputStream inputStream, int contentLength, String filename, String directory) throws IOException {
+        if (inputStream == null) {
+            throw new StorageException("Failed to store file from null input stream");
+        }
+
+        String sanitizedFilename = FileUtils.sanitizeFilename(filename);
+        String objectName = getObjectName(directory, sanitizedFilename);
+
+        try {
+            minioClient.putObject(PutObjectArgs.builder()
+                    .bucket(bucketName)
+                    .object(objectName)
+                    .stream(inputStream, contentLength, -1)
+                    .build());
+
+            return objectName;
+        } catch (Exception e) {
+            throw new StorageException("Failed to store file from input stream " + filename, e);
+        }
+    }
+
+    @Override
     public Resource loadAsResource(String filename) {
         try {
-            GetObjectResponse response = minioClient.getObject(
-                    GetObjectArgs.builder()
-                            .bucket(bucketName)
-                            .object(filename)
-                            .build());
+            GetObjectResponse response = minioClient.getObject(GetObjectArgs.builder()
+                    .bucket(bucketName)
+                    .object(filename)
+                    .build());
 
-            // Read the object into memory
-            // For larger files, we might want to use InputStreamResource instead
-            byte[] content = response.readAllBytes();
+            byte[] content = IOUtils.toByteArray(response);
             return new ByteArrayResource(content);
         } catch (Exception e) {
             throw new StorageException("Could not read file: " + filename, e);
@@ -142,43 +139,24 @@ public class MinioEnhancedStorageService implements EnhancedStorageService {
     @Override
     public String generatePresignedUrl(String filename, int expiryTimeInMinutes) {
         try {
-            // Generate a pre-signed URL for accessing the file
-            return minioClient.getPresignedObjectUrl(
-                    GetPresignedObjectUrlArgs.builder()
-                            .method(Method.GET)
-                            .bucket(bucketName)
-                            .object(filename)
-                            .expiry(expiryTimeInMinutes, TimeUnit.MINUTES)
-                            .build());
+            return minioClient.getPresignedObjectUrl(GetPresignedObjectUrlArgs.builder()
+                    .bucket(bucketName)
+                    .object(filename)
+                    .method(Method.GET)
+                    .expiry(expiryTimeInMinutes, TimeUnit.MINUTES)
+                    .build());
         } catch (Exception e) {
-            throw new StorageException("Could not generate pre-signed URL for: " + filename, e);
-        }
-    }
-
-    @Override
-    public String generateUploadUrl(String filename, String contentType, int expiryTimeInMinutes) {
-        try {
-            // Generate a pre-signed URL for uploading a file
-            return minioClient.getPresignedObjectUrl(
-                    GetPresignedObjectUrlArgs.builder()
-                            .method(Method.PUT)
-                            .bucket(bucketName)
-                            .object(filename)
-                            .expiry(expiryTimeInMinutes, TimeUnit.MINUTES)
-                            .build());
-        } catch (Exception e) {
-            throw new StorageException("Could not generate pre-signed upload URL for: " + filename, e);
+            throw new StorageException("Could not generate presigned URL for: " + filename, e);
         }
     }
 
     @Override
     public boolean delete(String filename) {
         try {
-            minioClient.removeObject(
-                    RemoveObjectArgs.builder()
-                            .bucket(bucketName)
-                            .object(filename)
-                            .build());
+            minioClient.removeObject(RemoveObjectArgs.builder()
+                    .bucket(bucketName)
+                    .object(filename)
+                    .build());
             return true;
         } catch (Exception e) {
             log.error("Error deleting file: {}", filename, e);
@@ -188,17 +166,36 @@ public class MinioEnhancedStorageService implements EnhancedStorageService {
 
     @Override
     public Stream<Path> loadAll(String directory) {
-        throw new UnsupportedOperationException("MinIO storage does not support listing all files as Path stream");
+        String prefix = directory == null ? "" : directory + "/";
+
+        try {
+            Iterable<Result<Item>> results = minioClient.listObjects(ListObjectsArgs.builder()
+                    .bucket(bucketName)
+                    .prefix(prefix)
+                    .recursive(false)
+                    .build());
+
+            return StreamSupport.stream(results.spliterator(), false)
+                    .map(itemResult -> {
+                        try {
+                            Item item = itemResult.get();
+                            return Paths.get(item.objectName());
+                        } catch (Exception e) {
+                            throw new StorageException("Failed to list files", e);
+                        }
+                    });
+        } catch (Exception e) {
+            throw new StorageException("Failed to list files", e);
+        }
     }
 
     @Override
     public boolean exists(String filename) {
         try {
-            minioClient.statObject(
-                    StatObjectArgs.builder()
-                            .bucket(bucketName)
-                            .object(filename)
-                            .build());
+            minioClient.statObject(StatObjectArgs.builder()
+                    .bucket(bucketName)
+                    .object(filename)
+                    .build());
             return true;
         } catch (Exception e) {
             return false;
@@ -208,15 +205,14 @@ public class MinioEnhancedStorageService implements EnhancedStorageService {
     @Override
     public boolean copy(String source, String destination) {
         try {
-            minioClient.copyObject(
-                    CopyObjectArgs.builder()
-                            .source(CopySource.builder()
-                                    .bucket(bucketName)
-                                    .object(source)
-                                    .build())
+            minioClient.copyObject(CopyObjectArgs.builder()
+                    .bucket(bucketName)
+                    .object(destination)
+                    .source(CopySource.builder()
                             .bucket(bucketName)
-                            .object(destination)
-                            .build());
+                            .object(source)
+                            .build())
+                    .build());
             return true;
         } catch (Exception e) {
             log.error("Error copying file from {} to {}", source, destination, e);
@@ -226,9 +222,7 @@ public class MinioEnhancedStorageService implements EnhancedStorageService {
 
     @Override
     public boolean move(String source, String destination) {
-        // Copy first, then delete if successful
-        boolean copySuccess = copy(source, destination);
-        if (copySuccess) {
+        if (copy(source, destination)) {
             return delete(source);
         }
         return false;
@@ -236,140 +230,157 @@ public class MinioEnhancedStorageService implements EnhancedStorageService {
 
     @Override
     public String mergeChunks(List<StorageChunk> chunks, String filename, String directory) throws IOException {
-        // Sort chunks by chunk number
+        // Ensure chunks are sorted by chunk number
         chunks.sort(Comparator.comparing(StorageChunk::getChunkNumber));
 
-        // Create destination object name
-        String objectName = getObjectName(directory, filename);
+        // Create a byte array output stream to combine all chunks
+        ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
 
-        // Create a temporary file for merging
-        Path tempFile = Files.createTempFile(tempDir, "merge-", filename);
-
-        try (OutputStream outputStream = new BufferedOutputStream(
-                new FileOutputStream(tempFile.toFile()), BUFFER_SIZE)) {
-
-            // Process each chunk
-            for (StorageChunk chunk : chunks) {
-                // Download chunk to temp directory
-                GetObjectResponse response = null;
-                try {
-                    response = minioClient.getObject(
-                            GetObjectArgs.builder()
-                                    .bucket(bucketName)
-                                    .object(chunk.getStoragePath())
-                                    .build());
-                } catch (ErrorResponseException e) {
-                    throw new RuntimeException(e);
-                } catch (InsufficientDataException e) {
-                    throw new RuntimeException(e);
-                } catch (InternalException e) {
-                    throw new RuntimeException(e);
-                } catch (InvalidKeyException e) {
-                    throw new RuntimeException(e);
-                } catch (InvalidResponseException e) {
-                    throw new RuntimeException(e);
-                } catch (NoSuchAlgorithmException e) {
-                    throw new RuntimeException(e);
-                } catch (ServerException e) {
-                    throw new RuntimeException(e);
-                } catch (XmlParserException e) {
-                    throw new RuntimeException(e);
-                }
-
-                // Write chunk data to the merged file
-                byte[] buffer = new byte[BUFFER_SIZE];
-                int bytesRead;
-                while ((bytesRead = response.read(buffer)) != -1) {
-                    outputStream.write(buffer, 0, bytesRead);
-                }
-
-                // Close the response
-                response.close();
-            }
-        }
-
-        // Upload the merged file
-        try (InputStream inputStream = Files.newInputStream(tempFile)) {
+        // Merge all chunks
+        for (StorageChunk chunk : chunks) {
             try {
-                minioClient.putObject(
-                        PutObjectArgs.builder()
-                                .bucket(bucketName)
-                                .object(objectName)
-                                .stream(inputStream, Files.size(tempFile), -1)
-                                .build());
-            } catch (ErrorResponseException e) {
-                throw new RuntimeException(e);
-            } catch (InsufficientDataException e) {
-                throw new RuntimeException(e);
-            } catch (InternalException e) {
-                throw new RuntimeException(e);
-            } catch (InvalidKeyException e) {
-                throw new RuntimeException(e);
-            } catch (InvalidResponseException e) {
-                throw new RuntimeException(e);
-            } catch (NoSuchAlgorithmException e) {
-                throw new RuntimeException(e);
-            } catch (ServerException e) {
-                throw new RuntimeException(e);
-            } catch (XmlParserException e) {
-                throw new RuntimeException(e);
+                GetObjectResponse response = minioClient.getObject(GetObjectArgs.builder()
+                        .bucket(bucketName)
+                        .object(chunk.getStoragePath())
+                        .build());
+
+                // Copy chunk data to the output stream
+                IOUtils.copy(response, outputStream);
+            } catch (Exception e) {
+                throw new StorageException("Error reading chunk: " + chunk.getStoragePath(), e);
             }
         }
 
-        // Clean up the temporary file
-        Files.deleteIfExists(tempFile);
+        // Create merged file from the combined chunks
+        String sanitizedFilename = FileUtils.sanitizeFilename(filename);
+        String objectName = getObjectName(directory, sanitizedFilename);
 
-        log.info("Merged {} chunks into file: {}", chunks.size(), objectName);
-        return objectName;
+        try {
+            byte[] mergedData = outputStream.toByteArray();
+            ByteArrayInputStream inputStream = new ByteArrayInputStream(mergedData);
+
+            minioClient.putObject(PutObjectArgs.builder()
+                    .bucket(bucketName)
+                    .object(objectName)
+                    .stream(inputStream, mergedData.length, -1)
+                    .build());
+
+            log.info("Merged {} chunks into file: {}", chunks.size(), objectName);
+            return objectName;
+        } catch (Exception e) {
+            throw new StorageException("Error storing merged file: " + filename, e);
+        } finally {
+            outputStream.close();
+        }
     }
 
     @Override
     public String generatePreview(String storagePath, String fileType, String mimeType) throws IOException {
-        // For now, just create a reference to the preview that would be generated
-        String previewName = FilenameUtils.getBaseName(storagePath) + "_preview.jpg";
-        String previewPath = "previews/" + previewName;
+        // In a real implementation, this would call a service to generate previews
 
-        // In a real implementation, would download the file, generate a preview, and upload it
-        log.warn("Preview generation not fully implemented for MinIO storage");
+        if (!exists(storagePath)) {
+            throw new StorageException("File not found: " + storagePath);
+        }
 
-        return previewPath;
+        // Generate a unique name for the preview
+        String extension = getPreviewExtension(fileType, mimeType);
+        String baseName = FilenameUtils.getBaseName(storagePath);
+        String previewFilename = baseName + "_preview." + extension;
+        String previewObjectName = previewsPrefix + previewFilename;
+
+        // For now, just copy the original file for image files
+        if (fileType.equals("image")) {
+            if (copy(storagePath, previewObjectName)) {
+                log.info("Generated preview for image: {}", previewObjectName);
+                return previewObjectName;
+            }
+        } else {
+            // In a real implementation, we'd generate previews for different file types
+            log.warn("Preview generation not implemented for file type: {}", fileType);
+        }
+
+        return null;
     }
 
     @Override
     public String generateThumbnail(String storagePath, String fileType, String mimeType) throws IOException {
-        // For image files, we might just resize the original image
-        // For other files, we'd need to generate a thumbnail representation
+        // Similar to preview generation, but for thumbnails
+        // In a real implementation, would call a service to generate thumbnails
 
-        String thumbnailName = FilenameUtils.getBaseName(storagePath) + "_thumbnail.jpg";
-        String thumbnailPath = "thumbnails/" + thumbnailName;
+        if (!exists(storagePath)) {
+            throw new StorageException("File not found: " + storagePath);
+        }
 
-        // In a real implementation, would download the file, generate a thumbnail, and upload it
-        log.warn("Thumbnail generation not fully implemented for MinIO storage");
+        // Generate a unique name for the thumbnail
+        String baseName = FilenameUtils.getBaseName(storagePath);
+        String thumbnailFilename = baseName + "_thumbnail.jpg";
+        String thumbnailObjectName = thumbnailsPrefix + thumbnailFilename;
 
-        return thumbnailPath;
+        // For now, just copy the original file for image files
+        if (fileType.equals("image")) {
+            if (copy(storagePath, thumbnailObjectName)) {
+                log.info("Generated thumbnail for image: {}", thumbnailObjectName);
+                return thumbnailObjectName;
+            }
+        } else {
+            // In a real implementation, we'd generate thumbnails for different file types
+            log.warn("Thumbnail generation not implemented for file type: {}", fileType);
+        }
+
+        return null;
     }
 
     @Override
     public String convertFile(String storagePath, String targetFormat) throws IOException {
-        // This would require external tools like LibreOffice or FFmpeg
-        // For now, just create a reference to where the converted file would be
+        // Convert file to a different format
+        // In a real implementation, would call a service to convert files
 
-        String convertedName = FilenameUtils.getBaseName(storagePath) + "." + targetFormat;
-        String convertedPath = "converted/" + convertedName;
+        if (!exists(storagePath)) {
+            throw new StorageException("File not found: " + storagePath);
+        }
 
-        log.warn("File conversion not fully implemented for MinIO storage");
+        // Generate a filename for the converted file
+        String baseName = FilenameUtils.getBaseName(storagePath);
+        String convertedFilename = baseName + "." + targetFormat;
+        String convertedObjectName = tempPrefix + convertedFilename;
 
-        return convertedPath;
+        // For now, just copy the original file (placeholder for actual conversion)
+        if (copy(storagePath, convertedObjectName)) {
+            log.info("Converted file to {}: {}", targetFormat, convertedObjectName);
+            return convertedObjectName;
+        }
+
+        return null;
     }
 
     @Override
     public String extractText(String storagePath, String mimeType) throws IOException {
-        // This would require text extraction tools like Apache Tika
-        // For now, just return a placeholder
+        // Extract text from file for search indexing
+        // In a real implementation, would call a service to extract text
 
-        log.warn("Text extraction not fully implemented for MinIO storage");
+        if (!exists(storagePath)) {
+            throw new StorageException("File not found: " + storagePath);
+        }
 
+        // For now, just return a placeholder message
+        log.info("Text extraction requested for: {}", storagePath);
         return "Text extraction not implemented in this version";
+    }
+
+    @Override
+    public String generateUploadUrl(String filename, String contentType, int expiryTimeInMinutes) {
+        try {
+            String sanitizedFilename = FileUtils.sanitizeFilename(filename);
+
+            return minioClient.getPresignedObjectUrl(GetPresignedObjectUrlArgs.builder()
+                    .bucket(bucketName)
+                    .object(sanitizedFilename)
+                    .method(Method.PUT)
+                    .expiry(expiryTimeInMinutes, TimeUnit.MINUTES)
+                    .build());
+        } catch (Exception e) {
+            throw new StorageException("Could not generate upload URL for: " + filename, e);
+        }
     }
 
     @Override
@@ -386,36 +397,18 @@ public class MinioEnhancedStorageService implements EnhancedStorageService {
     @Override
     public String computeHash(String storagePath) throws IOException {
         try {
-            // Download the file to calculate its hash
-            Path tempFile = Files.createTempFile(tempDir, "hash-", "tmp");
+            GetObjectResponse response = minioClient.getObject(GetObjectArgs.builder()
+                    .bucket(bucketName)
+                    .object(storagePath)
+                    .build());
 
-            try (GetObjectResponse response = minioClient.getObject(
-                    GetObjectArgs.builder()
-                            .bucket(bucketName)
-                            .object(storagePath)
-                            .build());
-                 OutputStream outputStream = Files.newOutputStream(tempFile)) {
+            byte[] fileBytes = IOUtils.toByteArray(response);
 
-                byte[] buffer = new byte[BUFFER_SIZE];
-                int bytesRead;
-                while ((bytesRead = response.read(buffer)) != -1) {
-                    outputStream.write(buffer, 0, bytesRead);
-                }
-            }
-
-            // Calculate hash from the downloaded file
             MessageDigest digest = MessageDigest.getInstance("SHA-256");
-            byte[] fileBytes = Files.readAllBytes(tempFile);
             byte[] hash = digest.digest(fileBytes);
-
-            // Clean up
-            Files.deleteIfExists(tempFile);
-
             return bytesToHex(hash);
-        } catch (NoSuchAlgorithmException e) {
-            throw new StorageException("Error computing file hash", e);
         } catch (Exception e) {
-            throw new StorageException("Error accessing file: " + storagePath, e);
+            throw new StorageException("Error computing file hash for: " + storagePath, e);
         }
     }
 
@@ -423,6 +416,24 @@ public class MinioEnhancedStorageService implements EnhancedStorageService {
 
     private String getObjectName(String directory, String filename) {
         return directory == null ? filename : directory + "/" + filename;
+    }
+
+    private String getPreviewExtension(String fileType, String mimeType) {
+        // Determine appropriate preview format based on file type
+        switch (fileType) {
+            case "document":
+            case "spreadsheet":
+            case "presentation":
+                return "pdf";
+            case "image":
+                return "jpg";
+            case "video":
+                return "jpg"; // Thumbnail for video
+            case "audio":
+                return "png"; // Waveform image for audio
+            default:
+                return "png";
+        }
     }
 
     private static String bytesToHex(byte[] hash) {

@@ -126,6 +126,12 @@ public interface FileRepository extends JpaRepository<File, Long> {
     long countByUserAndFileType(@Param("user") User user, @Param("fileType") String fileType);
 
     /**
+     * Find files that don't have thumbnails
+     */
+    @Query("SELECT f FROM File f WHERE f.user = :user AND f.isDeleted = false AND (f.thumbnailPath IS NULL OR f.thumbnailPath = '')")
+    List<File> findFilesWithoutThumbnails(@Param("user") User user);
+
+    /**
      * Find files by checksum (for deduplication)
      */
     List<File> findByUserAndChecksum(User user, String checksum);
@@ -133,7 +139,15 @@ public interface FileRepository extends JpaRepository<File, Long> {
     @Query("SELECT f FROM File f WHERE f.user = :user AND f.isDeleted = false AND f.fileType = :fileType")
     Page<File> findByFileType(@Param("user") User user, @Param("fileType") String fileType, Pageable pageable);
 
-
     @Query("SELECT f FROM File f WHERE f.user = :user AND f.isFavorite = true AND f.isDeleted = false")
     Page<File> findFavoriteFiles(@Param("user") User user, Pageable pageable);
+
+    /**
+     * Check if a file with the same storage path exists and is not deleted, excluding the current file
+     */
+    @Query("SELECT CASE WHEN COUNT(f) > 0 THEN true ELSE false END FROM File f " +
+            "WHERE f.storagePath = :storagePath AND f.isDeleted = false AND f.id <> :id")
+    boolean existsByStoragePathAndIsDeletedFalseAndIdNot(
+            @Param("storagePath") String storagePath,
+            @Param("id") Long id);
 }

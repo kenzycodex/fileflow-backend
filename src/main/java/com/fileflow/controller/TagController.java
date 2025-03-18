@@ -6,7 +6,6 @@ import com.fileflow.model.Tag;
 import com.fileflow.service.tag.TagService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
-import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -18,7 +17,7 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/v1/tags")
 @RequiredArgsConstructor
-@Tag(name = "Tag Management", description = "Tag management API")
+@io.swagger.v3.oas.annotations.tags.Tag(name = "Tag Management", description = "Tag management API")
 @SecurityRequirement(name = "bearerAuth")
 public class TagController {
 

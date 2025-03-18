@@ -2,7 +2,8 @@ package com.fileflow.service.health;
 
 import com.fileflow.dto.response.health.HealthCheckResponse;
 import com.fileflow.repository.UserRepository;
-import com.fileflow.service.storage.StorageService;
+import com.fileflow.service.storage.EnhancedStorageService;
+import com.fileflow.service.storage.StorageServiceFactory;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -10,9 +11,10 @@ import org.springframework.boot.actuate.health.Status;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.stereotype.Service;
+import org.springframework.web.multipart.MultipartFile;
 
-import javax.mail.MessagingException;
-import java.io.InputStream;
+import java.io.ByteArrayInputStream;
+import java.io.IOException;
 import java.lang.management.ManagementFactory;
 import java.lang.management.MemoryMXBean;
 import java.lang.management.OperatingSystemMXBean;
@@ -28,7 +30,7 @@ public class HealthServiceImpl implements HealthService {
 
     private final JdbcTemplate jdbcTemplate;
     private final UserRepository userRepository;
-    private final StorageService storageService;
+    private final StorageServiceFactory storageServiceFactory;
     private final JavaMailSender mailSender;
 
     @Value("${spring.application.name}")
@@ -83,6 +85,7 @@ public class HealthServiceImpl implements HealthService {
             }
         } catch (Exception e) {
             log.error("Database health check failed", e);
+            status.put("status", "DOWN");
             status.put("message", "Error connecting to database: " + e.getMessage());
             status.put("error", e.getClass().getName());
         }
@@ -96,15 +99,18 @@ public class HealthServiceImpl implements HealthService {
         status.put("status", "DOWN");
 
         try {
+            // Get the appropriate storage service
+            EnhancedStorageService storageService = storageServiceFactory.getStorageService();
+
             // Create a test file
-            String testFileName = "health-check-" + UUID.randomUUID().toString() + ".txt";
+            String testFileName = "health-check-" + UUID.randomUUID() + ".txt";
             String testContent = "Health check test file - " + LocalDateTime.now();
 
-            // Convert string to input stream
-            InputStream inputStream = new java.io.ByteArrayInputStream(testContent.getBytes());
+            // Create a MultipartFile for the test
+            MultipartFile testFile = createMultipartFileFromString(testFileName, testContent);
 
             // Store test file
-            String storagePath = storageService.store(inputStream, testContent.getBytes().length, testFileName, "health-checks");
+            String storagePath = storageService.store(testFile, "health-checks");
 
             // Check if file exists
             boolean exists = storageService.exists(storagePath);
@@ -112,6 +118,7 @@ public class HealthServiceImpl implements HealthService {
             if (exists) {
                 status.put("status", "UP");
                 status.put("message", "Storage service is operational");
+                status.put("storagePath", storagePath);
 
                 // Clean up test file
                 storageService.delete(storagePath);
@@ -120,6 +127,7 @@ public class HealthServiceImpl implements HealthService {
             }
         } catch (Exception e) {
             log.error("Storage health check failed", e);
+            status.put("status", "DOWN");
             status.put("message", "Error with storage service: " + e.getMessage());
             status.put("error", e.getClass().getName());
         }
@@ -141,6 +149,7 @@ public class HealthServiceImpl implements HealthService {
             status.put("message", "Email service is configured");
         } catch (Exception e) {
             log.error("Email health check failed", e);
+            status.put("status", "DOWN");
             status.put("message", "Error with email service: " + e.getMessage());
             status.put("error", e.getClass().getName());
         }
@@ -155,26 +164,103 @@ public class HealthServiceImpl implements HealthService {
         // Get runtime info
         Runtime runtime = Runtime.getRuntime();
 
+        // Memory metrics
         metrics.put("availableProcessors", runtime.availableProcessors());
-        metrics.put("freeMemory", runtime.freeMemory());
-        metrics.put("totalMemory", runtime.totalMemory());
-        metrics.put("maxMemory", runtime.maxMemory());
+        metrics.put("freeMemoryBytes", runtime.freeMemory());
+        metrics.put("totalMemoryBytes", runtime.totalMemory());
+        metrics.put("maxMemoryBytes", runtime.maxMemory());
 
-        // Get OS info
+        // Percentages for easier interpretation
+        long usedMemory = runtime.totalMemory() - runtime.freeMemory();
+        double memoryUsagePercentage = ((double) usedMemory / runtime.maxMemory()) * 100;
+        metrics.put("memoryUsagePercentage", String.format("%.2f", memoryUsagePercentage));
+
+        // OS info
         OperatingSystemMXBean osBean = ManagementFactory.getOperatingSystemMXBean();
         metrics.put("osName", osBean.getName());
         metrics.put("osVersion", osBean.getVersion());
-        metrics.put("osArch", osBean.getArch());
+        metrics.put("osArchitecture", osBean.getArch());
         metrics.put("systemLoadAverage", osBean.getSystemLoadAverage());
 
-        // Get memory details
+        // Memory details
         MemoryMXBean memoryBean = ManagementFactory.getMemoryMXBean();
         metrics.put("heapMemoryUsage", memoryBean.getHeapMemoryUsage().toString());
         metrics.put("nonHeapMemoryUsage", memoryBean.getNonHeapMemoryUsage().toString());
 
-        // Get JVM uptime
-        metrics.put("uptime", ManagementFactory.getRuntimeMXBean().getUptime());
+        // JVM uptime
+        long uptimeMillis = ManagementFactory.getRuntimeMXBean().getUptime();
+        metrics.put("uptimeMillis", uptimeMillis);
+        metrics.put("uptimeFormatted", formatUptime(uptimeMillis));
 
         return metrics;
+    }
+
+    /**
+     * Helper method to create a MultipartFile from a string for testing
+     */
+    private MultipartFile createMultipartFileFromString(String filename, String content) {
+        return new MultipartFile() {
+            @Override
+            public String getName() {
+                return "file";
+            }
+
+            @Override
+            public String getOriginalFilename() {
+                return filename;
+            }
+
+            @Override
+            public String getContentType() {
+                return "text/plain";
+            }
+
+            @Override
+            public boolean isEmpty() {
+                return false;
+            }
+
+            @Override
+            public long getSize() {
+                return content.getBytes().length;
+            }
+
+            @Override
+            public byte[] getBytes() throws IOException {
+                return content.getBytes();
+            }
+
+            @Override
+            public java.io.InputStream getInputStream() throws IOException {
+                return new ByteArrayInputStream(content.getBytes());
+            }
+
+            @Override
+            public void transferTo(java.io.File dest) throws IOException, IllegalStateException {
+                java.nio.file.Files.write(dest.toPath(), content.getBytes());
+            }
+        };
+    }
+
+    /**
+     * Format uptime into a human-readable string
+     */
+    private String formatUptime(long milliseconds) {
+        long seconds = milliseconds / 1000;
+        long minutes = seconds / 60;
+        long hours = minutes / 60;
+        long days = hours / 24;
+
+        hours %= 24;
+        minutes %= 60;
+        seconds %= 60;
+
+        StringBuilder uptime = new StringBuilder();
+        if (days > 0) uptime.append(days).append("d ");
+        if (hours > 0) uptime.append(hours).append("h ");
+        if (minutes > 0) uptime.append(minutes).append("m ");
+        uptime.append(seconds).append("s");
+
+        return uptime.toString().trim();
     }
 }
