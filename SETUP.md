@@ -27,7 +27,7 @@ This is the recommended approach for development, as it runs only the dependenci
 
 1. Clone the repository:
    ```bash
-   git clone https://github.com/yourusername/fileflow-backend.git
+   git clone https://github.com/kenzycodex/fileflow-backend.git
    cd fileflow-backend
    ```
 
@@ -80,7 +80,7 @@ If you prefer not to use Docker, you can set up the dependencies manually:
 
 1. Clone the repository:
    ```bash
-   git clone https://github.com/yourusername/fileflow-backend.git
+   git clone https://github.com/kenzycodex/fileflow-backend.git
    cd fileflow-backend
    ```
 

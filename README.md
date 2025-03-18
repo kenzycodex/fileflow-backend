@@ -114,7 +114,7 @@ Key entities in the system:
 
 1. Clone the repository:
    ```
-   git clone https://github.com/yourusername/fileflow-backend.git
+   git clone https://github.com/kenzycodex/fileflow-backend.git
    cd fileflow-backend
    ```
 
