@@ -33,7 +33,7 @@ public class Comment {
 
     @NotBlank
     @Size(max = 1000)
-    @Column(length = 1000)
+    @Column(name = "content", length = 1000)
     private String commentText;
 
     @CreationTimestamp
@@ -42,8 +42,11 @@ public class Comment {
     @UpdateTimestamp
     private LocalDateTime updatedAt;
 
-    @Column(columnDefinition = "boolean default false")
+    @Column(name = "is_edited", columnDefinition = "boolean default false")
     private boolean isEdited;
+
+    @Column(name = "is_deleted", columnDefinition = "boolean default false")
+    private boolean isDeleted;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "parent_comment_id")

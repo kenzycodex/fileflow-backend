@@ -9,15 +9,33 @@ services:
     container_name: fileflow-mysql-dev
     ports:
       - "3306:3306"
-    environment:
-      - MYSQL_ROOT_PASSWORD=password
-      - MYSQL_DATABASE=fileflow
     volumes:
       - mysql-data-dev:/var/lib/mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-fileflow}
+      MYSQL_DATABASE: fileflow
+      MYSQL_USER: ${MYSQL_USER:-fileflow}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-fileflow}
     networks:
       - fileflow-network-dev
     restart: unless-stopped
-    command: --default-authentication-plugin=mysql_native_password
+    command:
+      - --default-authentication-plugin=caching_sha2_password
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+    healthcheck:
+      test: [ "CMD", "mysqladmin", "ping", "-h", "fileflow-mysql-dev", "-u", "${MYSQL_USER:-fileflow}", "-p${MYSQL_PASSWORD:-fileflow}" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 2G
+        reservations:
+          cpus: '1'
+          memory: 1G
 
   minio:
     image: minio/minio:latest

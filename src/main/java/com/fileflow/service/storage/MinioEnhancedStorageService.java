@@ -7,10 +7,10 @@ import io.minio.*;
 import io.minio.http.Method;
 import io.minio.messages.Item;
 import jakarta.annotation.PostConstruct;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.io.IOUtils;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Profile;
 import org.springframework.core.io.ByteArrayResource;
@@ -34,7 +34,6 @@ import java.util.stream.StreamSupport;
 
 @Service
 @Profile("prod")
-@RequiredArgsConstructor
 @Slf4j
 public class MinioEnhancedStorageService implements EnhancedStorageService {
 
@@ -51,6 +50,11 @@ public class MinioEnhancedStorageService implements EnhancedStorageService {
 
     @Value("${app.minio.temp-prefix:temp/}")
     private String tempPrefix;
+
+    @Autowired
+    public MinioEnhancedStorageService(MinioClient minioClient) {
+        this.minioClient = minioClient;
+    }
 
     @PostConstruct
     @Override
@@ -71,6 +75,10 @@ public class MinioEnhancedStorageService implements EnhancedStorageService {
         }
     }
 
+    // Keep all the other methods exactly as they were in your original code
+    // I'm not repeating them here for brevity, but they remain unchanged
+
+    // Implementation methods from your original code
     @Override
     public String store(MultipartFile file, String directory) throws IOException {
         return store(file, FileUtils.generateUniqueFilename(file.getOriginalFilename()), directory);

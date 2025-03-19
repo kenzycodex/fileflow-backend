@@ -4,9 +4,9 @@ import com.fileflow.config.StorageConfig;
 import com.fileflow.exception.StorageException;
 import com.fileflow.model.StorageChunk;
 import com.fileflow.util.FileUtils;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.io.FilenameUtils;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Profile;
 import org.springframework.core.io.Resource;
 import org.springframework.core.io.UrlResource;
@@ -38,7 +38,6 @@ import java.util.stream.Stream;
  */
 @Service
 @Profile("!prod")
-@RequiredArgsConstructor
 @Slf4j
 public class LocalEnhancedStorageService implements EnhancedStorageService {
 
@@ -58,6 +57,7 @@ public class LocalEnhancedStorageService implements EnhancedStorageService {
     private static final int MAX_THUMBNAIL_WIDTH = 200;
     private static final int MAX_THUMBNAIL_HEIGHT = 200;
 
+    @Autowired
     public LocalEnhancedStorageService(StorageConfig storageConfig) {
         this.rootLocation = storageConfig.fileStorageLocation();
         this.previewsLocation = storageConfig.fileStorageLocation().resolve("previews");
@@ -80,6 +80,9 @@ public class LocalEnhancedStorageService implements EnhancedStorageService {
             throw new StorageException("Could not initialize storage", e);
         }
     }
+
+    // Rest of your existing implementation...
+    // Keep all the other methods exactly as they were
 
     @Override
     public String store(MultipartFile file, String directory) throws IOException {

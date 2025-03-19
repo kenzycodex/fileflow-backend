@@ -6,6 +6,7 @@ This guide provides detailed instructions for setting up and running the FileFlo
 
 - [Prerequisites](#prerequisites)
 - [Development Environment](#development-environment)
+- [Code Validation](#code-validation)
 - [Production Environment](#production-environment)
 - [Optional Components](#optional-components)
 - [Troubleshooting](#troubleshooting)
@@ -57,21 +58,73 @@ chmod +x setup-dev.sh
 ./setup-dev.sh
 ```
 
+To validate code without starting the application:
+```bash
+./setup-dev.sh --validate-only
+```
+
 ### Option 3: Manual Setup
 
 If you prefer not to use Docker, you can set up the dependencies manually:
 
 1. Install and configure MySQL 8.0
-    - Create a database named `fileflow`
-    - Update `application-dev.properties` with your database credentials
+   - Create a database named `fileflow`
+   - Update `application-dev.properties` with your database credentials
 
 2. Configure local storage:
-    - In `application-dev.properties`, set `app.storage.strategy=local`
-    - Ensure the application has write access to the storage directory
+   - In `application-dev.properties`, set `app.storage.strategy=local`
+   - Ensure the application has write access to the storage directory
 
 3. Run the application:
    ```bash
    ./mvnw spring-boot:run -Dspring-boot.run.profiles=dev
+   ```
+
+## Code Validation
+
+FileFlow includes tools to identify code issues early without running the full application:
+
+### Using the Validation Script
+
+The `validate-code.sh` script runs a sequence of checks to catch issues in the codebase:
+
+```bash
+chmod +x validate-code.sh
+./validate-code.sh
+```
+
+This will run:
+- Compilation checks
+- SpotBugs for bug detection
+- PMD for code quality analysis
+- Checkstyle for coding standards
+- Dependency analysis
+- Unit tests
+
+### Individual Validation Commands
+
+You can also run specific validation steps:
+
+1. Compile the project:
+   ```bash
+   ./mvnw clean compile
+   ```
+
+2. Run static analysis tools:
+   ```bash
+   ./mvnw spotbugs:check    # Bug detection
+   ./mvnw pmd:check         # Code quality
+   ./mvnw checkstyle:check  # Coding standards
+   ```
+
+3. Analyze dependencies:
+   ```bash
+   ./mvnw dependency:analyze
+   ```
+
+4. Run unit tests:
+   ```bash
+   ./mvnw test
    ```
 
 ## Production Environment
@@ -142,8 +195,8 @@ MinIO is recommended for production storage:
    ```
 
 2. Access the MinIO console at: http://localhost:9001
-    - Username: minioadmin
-    - Password: minioadmin
+   - Username: minioadmin
+   - Password: minioadmin
 
 3. Create a bucket named `fileflow` if not already created
 
@@ -214,3 +267,4 @@ In production, sensitive information should be provided via environment variable
 - Check the application logs: `./mvnw spring-boot:run -Dspring-boot.run.profiles=dev`
 - Verify environment variables are set correctly
 - Check file permissions for storage directories
+- Run the validation script to detect issues: `./validate-code.sh`

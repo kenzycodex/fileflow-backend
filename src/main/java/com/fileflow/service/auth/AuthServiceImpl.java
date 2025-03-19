@@ -97,7 +97,7 @@ public class AuthServiceImpl implements AuthService {
                 .email(signUpRequest.getEmail())
                 .password(passwordEncoder.encode(signUpRequest.getPassword()))
                 .status(User.Status.ACTIVE)
-                .role(User.Role.USER)
+                .role(User.UserRole.USER)
                 .storageQuota(1024L * 1024L * 1024L * 10L) // 10GB default
                 .storageUsed(0L)
                 .createdAt(LocalDateTime.now())

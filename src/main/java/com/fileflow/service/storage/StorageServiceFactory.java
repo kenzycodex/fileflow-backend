@@ -2,6 +2,7 @@ package com.fileflow.service.storage;
 
 import com.fileflow.config.StorageConfig;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Component;
 
 /**
@@ -11,13 +12,13 @@ import org.springframework.stereotype.Component;
 public class StorageServiceFactory {
 
     private final LocalEnhancedStorageService localStorageService;
-    private final EnhancedStorageService minioStorageService;  // Will be null if the minio profile is not active
+    private final MinioEnhancedStorageService minioStorageService;  // Will be null if the minio profile is not active
     private final String storageStrategy;
 
     @Autowired
     public StorageServiceFactory(
             LocalEnhancedStorageService localStorageService,
-            @Autowired(required = false) MinioEnhancedStorageService minioStorageService,
+            @Autowired(required = false) @Lazy MinioEnhancedStorageService minioStorageService,
             StorageConfig storageConfig) {
         this.localStorageService = localStorageService;
         this.minioStorageService = minioStorageService;

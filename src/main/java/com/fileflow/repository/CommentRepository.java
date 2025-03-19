@@ -70,6 +70,6 @@ public interface CommentRepository extends JpaRepository<Comment, Long> {
      * Search comments by content
      */
     @Query("SELECT c FROM Comment c WHERE c.file = :file AND c.isDeleted = false " +
-            "AND LOWER(c.content) LIKE LOWER(CONCAT('%', :keyword, '%'))")
+            "AND LOWER(c.commentText) LIKE LOWER(CONCAT('%', :keyword, '%'))")
     List<Comment> searchByContent(@Param("file") File file, @Param("keyword") String keyword);
 }

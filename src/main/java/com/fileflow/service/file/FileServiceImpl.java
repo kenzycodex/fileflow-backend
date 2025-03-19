@@ -7,9 +7,7 @@ import com.fileflow.dto.response.common.ApiResponse;
 import com.fileflow.dto.response.file.FileResponse;
 import com.fileflow.dto.response.file.FileUploadResponse;
 import com.fileflow.exception.BadRequestException;
-import com.fileflow.exception.ForbiddenException;
 import com.fileflow.exception.ResourceNotFoundException;
-import com.fileflow.exception.StorageException;
 import com.fileflow.model.File;
 import com.fileflow.model.Folder;
 import com.fileflow.model.StorageChunk;
@@ -25,8 +23,8 @@ import com.fileflow.service.storage.EnhancedStorageService;
 import com.fileflow.service.storage.StorageServiceFactory;
 import com.fileflow.util.Constants;
 import com.fileflow.util.FileUtils;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.io.Resource;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -59,6 +57,7 @@ public class FileServiceImpl implements FileService {
     private final ActivityService activityService;
     private final QuotaService quotaService;
 
+    @Autowired
     public FileServiceImpl(
             FileRepository fileRepository,
             FolderRepository folderRepository,
