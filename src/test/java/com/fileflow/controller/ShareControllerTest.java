@@ -274,7 +274,8 @@ public class ShareControllerTest {
                 .ownerName("testuser")
                 .build();
 
-        when(shareService.getShareByLink(eq("abc123"), anyString())).thenReturn(response);
+        // Fix: Use explicit null parameter instead of anyString() to match exact signature
+        when(shareService.getShareByLink(eq("abc123"), isNull())).thenReturn(response);
 
         mockMvc.perform(get("/api/v1/shares/links/abc123"))
                 .andExpect(status().isOk())
@@ -307,7 +308,7 @@ public class ShareControllerTest {
         ShareResponse shareResponse = ShareResponse.builder()
                 .id(1L)
                 .itemId(1L)
-                .itemType("FILE")
+                .itemType("FILE") // Important: properly set item type to FILE
                 .shareLink("abc123")
                 .build();
 
@@ -318,7 +319,8 @@ public class ShareControllerTest {
                 .fileType("document")
                 .build();
 
-        when(shareService.getShareByLink(eq("abc123"), anyString())).thenReturn(shareResponse);
+        // Fix: Use explicit null parameter instead of anyString() to match exact signature
+        when(shareService.getShareByLink(eq("abc123"), isNull())).thenReturn(shareResponse);
         when(fileService.getFile(1L)).thenReturn(fileResponse);
 
         mockMvc.perform(get("/api/v1/shares/links/abc123/file"))
@@ -333,7 +335,7 @@ public class ShareControllerTest {
         ShareResponse shareResponse = ShareResponse.builder()
                 .id(1L)
                 .itemId(1L)
-                .itemType("FOLDER")
+                .itemType("FOLDER") // Important: properly set item type to FOLDER
                 .shareLink("abc123")
                 .build();
 
@@ -344,7 +346,8 @@ public class ShareControllerTest {
                 .folders(Collections.emptyList())
                 .build();
 
-        when(shareService.getShareByLink(eq("abc123"), anyString())).thenReturn(shareResponse);
+        // Fix: Use explicit null parameter instead of anyString() to match exact signature
+        when(shareService.getShareByLink(eq("abc123"), isNull())).thenReturn(shareResponse);
         when(folderService.getFolderContents(1L)).thenReturn(folderContentsResponse);
 
         mockMvc.perform(get("/api/v1/shares/links/abc123/folder"))

@@ -2,6 +2,8 @@ package com.fileflow.controller;
 
 import com.fileflow.dto.response.common.ApiResponse;
 import com.fileflow.dto.response.common.SearchResponse;
+import com.fileflow.model.File;
+import com.fileflow.repository.FileRepository;
 import com.fileflow.service.search.SearchService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
@@ -9,6 +11,8 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+
+import java.util.Optional;
 
 /**
  * Controller for search functionality
@@ -21,6 +25,7 @@ import org.springframework.web.bind.annotation.*;
 public class SearchController {
 
     private final SearchService searchService;
+    private final FileRepository fileRepository;
 
     @GetMapping
     @Operation(summary = "Search files and folders",
@@ -116,11 +121,19 @@ public class SearchController {
             description = "Manually trigger indexing for a file (admin only)")
     public ResponseEntity<ApiResponse> indexFile(@PathVariable Long fileId) {
         // Retrieve file and index it
-        // This would typically be restricted to admin users
-        return ResponseEntity.ok(ApiResponse.builder()
-                .success(true)
-                .message("File indexing initiated")
-                .build());
+        Optional<File> fileOptional = fileRepository.findById(fileId);
+        if (fileOptional.isPresent()) {
+            searchService.indexFile(fileOptional.get());
+            return ResponseEntity.ok(ApiResponse.builder()
+                    .success(true)
+                    .message("File indexing initiated")
+                    .build());
+        } else {
+            return ResponseEntity.badRequest().body(ApiResponse.builder()
+                    .success(false)
+                    .message("File not found")
+                    .build());
+        }
     }
 
     @PostMapping("/reindex")
