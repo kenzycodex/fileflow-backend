@@ -33,9 +33,12 @@ public class MinioConfig {
 
     /**
      * Creates and configures MinIO client
+     * Note: MinIO's API endpoint is 9000, while the web console is at 9001
      */
     @Bean
     public MinioClient minioClient() {
+        log.info("Configuring MinIO client with endpoint: {}", endpoint);
+        // Important: The MinIO API uses port 9000, not 9001 (which is for the web console)
         return MinioClient.builder()
                 .endpoint(endpoint)
                 .credentials(accessKey, secretKey)
@@ -63,7 +66,9 @@ public class MinioConfig {
             }
         } catch (Exception e) {
             log.error("Failed to initialize MinIO bucket", e);
-            throw new RuntimeException("Could not initialize MinIO bucket", e);
+            log.error("MinIO may not be available. If using Docker, make sure the container is running.");
+            log.error("Note: MinIO API uses port 9000, web console uses port 9001.");
+            // Don't throw exception here to allow application to start without MinIO
         }
     }
 }

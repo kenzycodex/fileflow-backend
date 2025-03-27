@@ -16,6 +16,7 @@ FileFlow is a comprehensive cloud storage solution that provides secure file sto
 - [Getting Started](#getting-started)
 - [Development Environment](#development-environment)
 - [Production Deployment](#production-deployment)
+- [Testing](#testing)
 - [API Documentation](#api-documentation)
 - [Contributing](#contributing)
 - [Documentation](#documentation)
@@ -49,8 +50,8 @@ FileFlow is built with a modular, layered architecture that promotes separation 
 ### Storage Layer
 
 - **Storage Service Abstraction** with multiple implementations:
-  - `LocalEnhancedStorageService`: File system-based implementation for development
-  - `MinioEnhancedStorageService`: Object storage implementation using MinIO for production
+    - `LocalEnhancedStorageService`: File system-based implementation for development
+    - `MinioEnhancedStorageService`: Object storage implementation using MinIO for production
 
 ### Service Layer
 
@@ -100,6 +101,7 @@ Key entities in the system:
 - **Authentication**: JWT (JSON Web Tokens)
 - **API Documentation**: OpenAPI/Swagger
 - **Build Tool**: Maven
+- **Testing**: JUnit 5, Mockito, Spring Test
 
 ## Getting Started
 
@@ -149,6 +151,10 @@ chmod +x setup-dev.sh
 ./setup-dev.sh
 ```
 
+### Option 3: Manual Setup
+
+For details on setting up the development environment manually without Docker, see the [Manual Setup Guide](MANUAL_SETUP.md).
+
 ## Production Deployment
 
 For production deployment, use the Docker Compose file:
@@ -160,6 +166,28 @@ docker-compose up -d
 Configure environment-specific settings in `application-prod.properties` or through environment variables.
 
 See the [Setup Guide](SETUP.md) for detailed production deployment instructions.
+
+## Testing
+
+FileFlow includes comprehensive tests to ensure functionality and stability:
+
+### Running Tests
+
+```bash
+# Run all tests
+./mvnw test
+
+# Run specific test class
+./mvnw test -Dtest=FileControllerTest
+```
+
+### Test Categories
+
+- **Unit Tests**: Tests for service classes and utilities
+- **Controller Tests**: Tests for REST controllers
+- **Security Tests**: Tests for authentication and authorization
+
+For more details on testing, see the [Testing Guide](TESTING.md).
 
 ## API Documentation
 
@@ -196,6 +224,8 @@ app.minio.secret-key=minioadmin
 For more detailed documentation, refer to:
 
 - [Setup Guide](SETUP.md) - Detailed setup and deployment instructions
+- [Manual Setup Guide](MANUAL_SETUP.md) - Running without Docker
+- [Testing Guide](TESTING.md) - Testing strategy and procedures
 - [Search Integration](SEARCH_INTEGRATION.md) - Documentation on the Elasticsearch integration
 - [API Documentation](http://localhost:8080/swagger-ui.html) - Available when the application is running
 

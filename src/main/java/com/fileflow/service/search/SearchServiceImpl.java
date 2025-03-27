@@ -53,6 +53,14 @@ public class SearchServiceImpl implements SearchService {
     @Autowired(required = false)
     private ElasticsearchSearchService elasticsearchSearchService;
 
+    /**
+     * Setter for elasticsearchSearchService - used for testing and when elasticsearch is available
+     * @param elasticsearchSearchService The Elasticsearch search service
+     */
+    public void setElasticsearchSearchService(ElasticsearchSearchService elasticsearchSearchService) {
+        this.elasticsearchSearchService = elasticsearchSearchService;
+    }
+
     @Override
     public SearchResponse search(String query, int page, int size) {
         if (!StringUtils.hasText(query)) {
