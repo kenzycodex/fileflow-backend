@@ -31,13 +31,13 @@ public class JwtTokenProvider {
         Date expiryDate = new Date(now.getTime() + jwtConfig.getExpiration());
 
         Map<String, Object> claims = new HashMap<>();
-        claims.put("sub", userId);
+        claims.put("sub", userId.toString());
 
         return Jwts.builder()
                 .setClaims(claims)
                 .setIssuedAt(now)
                 .setExpiration(expiryDate)
-                .signWith(getSigningKey())
+                .signWith(getSigningKey(), SignatureAlgorithm.HS512)
                 .compact();
     }
 
@@ -46,13 +46,13 @@ public class JwtTokenProvider {
         Date expiryDate = new Date(now.getTime() + jwtConfig.getRefreshExpiration());
 
         Map<String, Object> claims = new HashMap<>();
-        claims.put("sub", userId);
+        claims.put("sub", userId.toString());
 
         return Jwts.builder()
                 .setClaims(claims)
                 .setIssuedAt(now)
                 .setExpiration(expiryDate)
-                .signWith(getSigningKey())
+                .signWith(getSigningKey(), SignatureAlgorithm.HS512)
                 .compact();
     }
 

@@ -25,7 +25,7 @@
         <minio.version>8.5.2</minio.version>
         <mapstruct.version>1.5.3.Final</mapstruct.version>
         <commons-io.version>2.11.0</commons-io.version>
-        <springdoc.version>2.2.0</springdoc.version>
+        <springdoc.version>2.5.0</springdoc.version>
         <elasticsearch.version>7.17.14</elasticsearch.version>
         <maven.compiler.source>17</maven.compiler.source>
         <maven.compiler.target>17</maven.compiler.target>

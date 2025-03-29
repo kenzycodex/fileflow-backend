@@ -8,7 +8,9 @@ This guide provides detailed instructions for setting up and running the FileFlo
 - [Development Environment](#development-environment)
 - [Code Validation](#code-validation)
 - [Production Environment](#production-environment)
+- [API Documentation](#api-documentation)
 - [Optional Components](#optional-components)
+- [Environment Configuration](#environment-configuration)
 - [Troubleshooting](#troubleshooting)
 
 ## Prerequisites
@@ -164,6 +166,54 @@ For production, it's strongly recommended to configure SSL:
    server.ssl.key-alias=your-key-alias
    ```
 
+## API Documentation
+
+FileFlow uses OpenAPI/Swagger for API documentation:
+
+### Accessing Swagger UI
+
+When the application is running, the Swagger UI is available at:
+- http://localhost:8080/swagger-ui.html
+
+### OpenAPI Specification
+
+The raw OpenAPI specification is available at:
+- http://localhost:8080/v3/api-docs
+
+### Swagger Configuration
+
+The Swagger configuration is handled through:
+
+1. SwaggerConfig class:
+   - Configures the OpenAPI documentation
+   - Sets up security schemes for API endpoints
+
+2. Security configuration:
+   - Ensures Swagger endpoints are publicly accessible
+   - Configured in SecurityConfig class
+
+3. Custom application properties:
+   ```properties
+   # Swagger/OpenAPI Configuration
+   springdoc.api-docs.path=/v3/api-docs
+   springdoc.swagger-ui.path=/swagger-ui.html
+   springdoc.swagger-ui.operationsSorter=method
+   springdoc.swagger-ui.tagsSorter=alpha
+   springdoc.swagger-ui.disable-swagger-default-url=true
+   springdoc.swagger-ui.display-request-duration=true
+   springdoc.packagesToScan=com.fileflow.controller
+   springdoc.pathsToMatch=/api/v1/**
+   ```
+
+### Troubleshooting Swagger
+
+If Swagger UI is not loading properly:
+
+1. Ensure all Swagger endpoints are permitted in SecurityConfig
+2. Check WebMvcConfig for proper resource handler configuration
+3. Verify the JWT filter is correctly excluding Swagger paths
+4. Check browser console for any JavaScript errors
+
 ## Optional Components
 
 ### Elasticsearch Setup
@@ -268,3 +318,11 @@ In production, sensitive information should be provided via environment variable
 - Verify environment variables are set correctly
 - Check file permissions for storage directories
 - Run the validation script to detect issues: `./validate-code.sh`
+
+### Swagger UI Issues
+
+- Check if the Swagger UI path is configured correctly in application properties
+- Ensure all Swagger-related endpoints are permitted in security configuration
+- Verify the JWT filter is set to ignore Swagger paths
+- Check browser console for any JavaScript errors
+- Look for circular forwarding issues in logs if you see StackOverflowError
