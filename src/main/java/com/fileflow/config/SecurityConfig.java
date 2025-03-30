@@ -79,18 +79,31 @@ public class SecurityConfig {
                 .sessionManagement(session -> session
                         .sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(authorize -> authorize
-                        // Public endpoints
+                        // Public static resources
                         .requestMatchers("/").permitAll()
+                        .requestMatchers("/index.html").permitAll()
                         .requestMatchers("/favicon.ico").permitAll()
+                        .requestMatchers("/assets/**").permitAll()  // Vite usually uses /assets/
                         .requestMatchers("/static/**").permitAll()
-                        .requestMatchers("/*.png", "/*.gif", "/*.svg", "/*.jpg", "/*.html", "/*.css", "/*.js").permitAll()
+                        .requestMatchers("/js/**").permitAll()
+                        .requestMatchers("/css/**").permitAll()
+                        .requestMatchers("/img/**").permitAll()
+                        .requestMatchers("/*.js").permitAll()
+                        .requestMatchers("/*.css").permitAll()
+                        .requestMatchers("/*.json").permitAll()
+                        .requestMatchers("/*.ico").permitAll()
+                        .requestMatchers("/*.png").permitAll()
+                        .requestMatchers("/*.jpg").permitAll()
+                        .requestMatchers("/*.jpeg").permitAll()
+                        .requestMatchers("/*.svg").permitAll()
+                        .requestMatchers("/*.gif").permitAll()
 
-                        // Authentication and auth-related endpoints
+                        // Authentication endpoints
                         .requestMatchers("/api/v1/auth/**").permitAll()
                         .requestMatchers("/api/v1/shares/links/**").permitAll()
                         .requestMatchers("/api/v1/health").permitAll()
 
-                        // Explicitly permit ALL Swagger/OpenAPI paths
+                        // Swagger/OpenAPI
                         .requestMatchers("/v3/api-docs/**").permitAll()
                         .requestMatchers("/swagger-ui.html").permitAll()
                         .requestMatchers("/swagger-ui/**").permitAll()
@@ -98,7 +111,7 @@ public class SecurityConfig {
                         .requestMatchers("/webjars/**").permitAll()
                         .requestMatchers("/configuration/**").permitAll()
 
-                        // Require authentication for all other endpoints
+                        // All other requests need authentication
                         .anyRequest().authenticated())
 
                 // Add JWT authentication filter

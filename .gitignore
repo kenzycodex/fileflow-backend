@@ -36,6 +36,8 @@ build/
 # IDE - VS Code
 .vscode/
 
+write/
+
 # Operating System Files
 .DS_Store
 .DS_Store?
