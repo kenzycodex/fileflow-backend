@@ -7,7 +7,7 @@
     <option name="VM_PARAMETERS" value="-Dspring.profiles.active=dev" />
     <extension name="coverage">
       <pattern>
-        <option name="PATTERN" value="com.fileflow.*" />
+        <option name="PATTERN" value="com.fileflow.test.helpers.*" />
         <option name="ENABLED" value="true" />
       </pattern>
     </extension>

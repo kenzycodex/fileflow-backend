@@ -1,6 +1,7 @@
 package com.fileflow.security;
 
 import com.fileflow.config.JwtConfig;
+import com.fileflow.service.auth.JwtService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -28,6 +29,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     private final JwtTokenProvider tokenProvider;
     private final CustomUserDetailsService customUserDetailsService;
     private final JwtConfig jwtConfig;
+    private final JwtService jwtService;
     private final AntPathMatcher pathMatcher = new AntPathMatcher();
 
     // List of paths that should be excluded from JWT authentication
@@ -64,6 +66,14 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
             if (StringUtils.hasText(jwt) && tokenProvider.validateToken(jwt)) {
                 Long userId = tokenProvider.getUserIdFromJWT(jwt);
+
+                // Check if the token belongs to a logged-out session
+                // Only validate access tokens against user sessions
+                if (!jwt.equals(jwtService.getLatestAccessToken(userId))) {
+                    log.warn("Attempt to use an invalidated access token for user ID: {}", userId);
+                    filterChain.doFilter(request, response);
+                    return;
+                }
 
                 UserDetails userDetails = customUserDetailsService.loadUserById(userId);
                 UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(

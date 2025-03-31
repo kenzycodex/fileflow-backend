@@ -16,6 +16,7 @@ public class JwtServiceTest {
 
     private final Long userId = 1L;
     private final String refreshToken = "sample-refresh-token";
+    private final String accessToken = "sample-access-token";
 
     @BeforeEach
     public void setup() {
@@ -80,5 +81,35 @@ public class JwtServiceTest {
         // Assert
         assertFalse(isInitialValid, "Initial token should be invalid after overwriting");
         assertTrue(isNewValid, "New token should be valid");
+    }
+
+    @Test
+    public void testSaveAndGetAccessToken() {
+        // Save an access token
+        jwtService.saveAccessToken(userId, accessToken);
+
+        // Get the latest access token
+        String savedToken = jwtService.getLatestAccessToken(userId);
+
+        // Assert
+        assertEquals(accessToken, savedToken, "Retrieved access token should match the saved one");
+    }
+
+    @Test
+    public void testLogoutRemovesBothTokens() {
+        // Save both token types
+        jwtService.saveAccessToken(userId, accessToken);
+        jwtService.saveRefreshToken(userId, refreshToken);
+
+        // Verify tokens are saved
+        assertNotNull(jwtService.getLatestAccessToken(userId));
+        assertTrue(jwtService.validateRefreshToken(userId, refreshToken));
+
+        // Remove tokens (logout)
+        jwtService.removeRefreshToken(userId);
+
+        // Verify both tokens are removed
+        assertNull(jwtService.getLatestAccessToken(userId));
+        assertFalse(jwtService.validateRefreshToken(userId, refreshToken));
     }
 }

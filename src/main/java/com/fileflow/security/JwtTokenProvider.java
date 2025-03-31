@@ -1,6 +1,7 @@
 package com.fileflow.security;
 
 import com.fileflow.config.JwtConfig;
+import com.fileflow.service.auth.JwtService;
 import io.jsonwebtoken.*;
 import io.jsonwebtoken.security.Keys;
 import lombok.RequiredArgsConstructor;
@@ -20,6 +21,7 @@ import java.util.Map;
 public class JwtTokenProvider {
 
     private final JwtConfig jwtConfig;
+    private final JwtService jwtService;
 
     public String generateToken(Authentication authentication) {
         UserPrincipal userPrincipal = (UserPrincipal) authentication.getPrincipal();
@@ -33,12 +35,17 @@ public class JwtTokenProvider {
         Map<String, Object> claims = new HashMap<>();
         claims.put("sub", userId.toString());
 
-        return Jwts.builder()
+        String token = Jwts.builder()
                 .setClaims(claims)
                 .setIssuedAt(now)
                 .setExpiration(expiryDate)
                 .signWith(getSigningKey(), SignatureAlgorithm.HS512)
                 .compact();
+
+        // Store the latest access token
+        jwtService.saveAccessToken(userId, token);
+
+        return token;
     }
 
     public String generateRefreshToken(Long userId) {

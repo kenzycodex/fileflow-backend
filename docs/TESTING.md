@@ -8,7 +8,9 @@ This document provides guidance on testing the FileFlow application, including t
 - [Running Tests](#running-tests)
 - [Unit Tests](#unit-tests)
 - [Controller Tests](#controller-tests)
+- [Authentication Testing](#authentication-testing)
 - [Security in Tests](#security-in-tests)
+- [Environment Configuration in Tests](#environment-configuration-in-tests)
 - [Troubleshooting Common Test Issues](#troubleshooting-common-test-issues)
 
 ## Test Structure
@@ -18,6 +20,7 @@ FileFlow tests are organized into several categories:
 - **Unit Tests**: Test individual components in isolation
 - **Controller Tests**: Test REST controllers with mock services
 - **Configuration Tests**: Test configuration classes
+- **Authentication Tests**: Test authentication flows including Firebase integration
 
 ### Test Packages
 
@@ -28,6 +31,7 @@ Tests are organized into the following package structure:
 - `com.fileflow.repository`: Repository tests
 - `com.fileflow.security`: Security component tests
 - `com.fileflow.config`: Configuration tests
+- `com.fileflow.test.helpers`: Test helper classes and utilities
 
 ## Running Tests
 
@@ -94,6 +98,7 @@ public class SearchServiceImplTest {
 3. Use descriptive method names
 4. Set up common test data in `@BeforeEach` methods
 5. For void methods, use `doNothing().when()` pattern
+6. Use `ReflectionTestUtils` to set private fields for testing
 
 ## Controller Tests
 
@@ -158,6 +163,96 @@ public void testAdminEndpoint() throws Exception {
 }
 ```
 
+## Authentication Testing
+
+### Testing JWT Authentication
+
+Test JWT authentication by mocking the `JwtTokenProvider`:
+
+```java
+@ExtendWith(MockitoExtension.class)
+public class JwtTokenProviderTest {
+
+    @Mock
+    private JwtConfig jwtConfig;
+    
+    @Mock
+    private JwtService jwtService;
+    
+    @InjectMocks
+    private JwtTokenProvider tokenProvider;
+    
+    @BeforeEach
+    public void setup() {
+        when(jwtConfig.getSecret()).thenReturn("test-secret-key-long-enough-for-jwt-signature");
+        when(jwtConfig.getExpiration()).thenReturn(3600000L);
+    }
+    
+    @Test
+    public void testGenerateToken() {
+        // Test token generation
+    }
+}
+```
+
+### Testing Firebase Authentication
+
+Testing Firebase authentication requires carefully mocking the Firebase SDK:
+
+```java
+@ExtendWith(MockitoExtension.class)
+public class FirebaseAuthServiceTest {
+
+    @Mock
+    private AuthService authService;
+
+    @Mock
+    private FirebaseToken firebaseToken;
+
+    @Mock
+    private FirebaseAuth firebaseAuth;
+
+    @InjectMocks
+    private FirebaseAuthService firebaseAuthService;
+
+    @BeforeEach
+    public void setup() {
+        ReflectionTestUtils.setField(firebaseAuthService, "firebaseEnabled", true);
+    }
+
+    @Test
+    public void testAuthenticateWithFirebaseTokenVerificationFailed() {
+        try (MockedStatic<FirebaseAuth> firebaseAuthMock = mockStatic(FirebaseAuth.class)) {
+            // Mock FirebaseAuth
+            firebaseAuthMock.when(FirebaseAuth::getInstance).thenReturn(firebaseAuth);
+            
+            // Create a simple mocked exception
+            Exception mockException = mock(FirebaseAuthException.class);
+            when(mockException.getMessage()).thenReturn("Invalid token");
+            
+            // Make verifyIdToken throw the exception
+            when(firebaseAuth.verifyIdToken(anyString())).thenThrow(mockException);
+
+            // Test that UnauthorizedException is thrown for invalid token
+            UnauthorizedException exception = assertThrows(UnauthorizedException.class, () -> {
+                firebaseAuthService.authenticateWithFirebase("invalid-token");
+            });
+            
+            // Verify the exception message
+            assertTrue(exception.getMessage().contains("Invalid Firebase token"));
+        }
+    }
+}
+```
+
+Important points for Firebase authentication testing:
+
+1. Use `MockedStatic` to mock static Firebase methods
+2. Mock the `FirebaseAuth` and `FirebaseToken` interfaces
+3. For exceptions, create a mock of `FirebaseAuthException` rather than instantiating directly
+4. Set private fields using `ReflectionTestUtils`
+5. Test both success and failure scenarios
+
 ## Security in Tests
 
 ### TestSecurityConfig
@@ -193,6 +288,37 @@ public class FolderControllerTest {
     // Test methods
 }
 ```
+
+## Environment Configuration in Tests
+
+When testing with environment variables:
+
+1. Set environment variables programmatically:
+
+```java
+@BeforeEach
+public void setup() {
+    // Set environment variables for the test
+    System.setProperty("FIREBASE_ENABLED", "false");
+}
+
+@AfterEach
+public void cleanup() {
+    // Clear environment variables after the test
+    System.clearProperty("FIREBASE_ENABLED");
+}
+```
+
+2. Use `ReflectionTestUtils` to set values directly:
+
+```java
+@BeforeEach
+public void setup() {
+    ReflectionTestUtils.setField(firebaseAuthService, "firebaseEnabled", false);
+}
+```
+
+3. Create a test-specific `.env` file and place it in the test resources directory.
 
 ## Troubleshooting Common Test Issues
 
@@ -264,3 +390,29 @@ public void setup() {
     SecurityContextHolder.setContext(securityContext);
 }
 ```
+
+### Firebase Authentication Testing Issues
+
+Common issues when testing Firebase authentication:
+
+1. **FirebaseAuthException constructor not found**:
+    - Don't instantiate `FirebaseAuthException` directly, mock it instead:
+   ```java
+   Exception mockException = mock(FirebaseAuthException.class);
+   when(mockException.getMessage()).thenReturn("Invalid token");
+   ```
+
+2. **Static methods not mocked properly**:
+    - Use `MockedStatic` in a try-with-resources block:
+   ```java
+   try (MockedStatic<FirebaseAuth> firebaseAuthMock = mockStatic(FirebaseAuth.class)) {
+       firebaseAuthMock.when(FirebaseAuth::getInstance).thenReturn(firebaseAuth);
+       // Test code here
+   }
+   ```
+
+3. **Environment configuration issues**:
+    - Use `ReflectionTestUtils` to set environment properties directly:
+   ```java
+   ReflectionTestUtils.setField(service, "firebaseEnabled", true);
+   ```

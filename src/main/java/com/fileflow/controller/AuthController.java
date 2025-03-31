@@ -61,4 +61,10 @@ public class AuthController {
     public ResponseEntity<ApiResponse> validateToken(@RequestParam String token) {
         return ResponseEntity.ok(authService.validateToken(token));
     }
+
+    @PostMapping("/logout")
+    @Operation(summary = "Logout user")
+    public ResponseEntity<ApiResponse> logout(@RequestParam(required = false) String refreshToken) {
+        return ResponseEntity.ok(authService.logout(refreshToken));
+    }
 }

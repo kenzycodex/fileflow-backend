@@ -36,6 +36,7 @@ build/
 # IDE - VS Code
 .vscode/
 
+# Write directory
 write/
 
 # Operating System Files
@@ -57,12 +58,23 @@ yarn-error.log*
 # Environment configuration
 .env
 .env.local
+.env.dev
+.env.prod
 .env.development.local
 .env.test.local
 .env.production.local
 application-local.properties
-application-dev.properties
-application-prod.properties
+# Keep default profiles for dev and prod in version control
+# application-dev.properties
+# application-prod.properties
+
+# Environment files
+.env.*
+!.env.example
+
+# Firebase credentials
+**/firebase-service-account.json
+config/firebase-service-account.json
 
 # Package files
 *.jar
@@ -86,3 +98,7 @@ yarn-error.log
 # Database
 *.db
 *.sqlite
+
+# Runtime files
+fileflow-storage/
+fileflow-storage-dev/

@@ -29,11 +29,9 @@ public class User {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @NotBlank
     @Size(max = 50)
     private String firstName;
 
-    @NotBlank
     @Size(max = 50)
     private String lastName;
 
@@ -46,13 +44,18 @@ public class User {
     @Email
     private String email;
 
-    @NotBlank
     @Size(max = 100)
     private String password;
 
     private String profileImagePath;
 
     private boolean enabled;
+
+    // Firebase authentication fields
+    private String firebaseUid;
+
+    @Enumerated(EnumType.STRING)
+    private AuthProvider authProvider;
 
     private String verificationToken;
 
@@ -112,5 +115,13 @@ public class User {
     public enum UserRole {
         USER,
         ADMIN
+    }
+
+    public enum AuthProvider {
+        LOCAL,
+        GOOGLE,
+        GITHUB,
+        MICROSOFT,
+        APPLE
     }
 }

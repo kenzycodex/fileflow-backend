@@ -24,4 +24,5 @@ public class UserResponse {
     private Long storageQuota;
     private Long storageUsed;
     private String role;
+    private String authProvider;
 }

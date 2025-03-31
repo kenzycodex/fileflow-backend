@@ -1,19 +1,19 @@
 version: '3.8'
 
-# Development dependencies only (MySQL, MinIO, Elasticsearch)
-# The application will run directly on the host machine
+# Development dependencies only (MySQL, MinIO, Elasticsearch, Redis)
+# The application itself runs on the host machine, not in a container
 
 services:
   mysql:
     image: mysql:8.0
     container_name: fileflow-mysql-dev
     ports:
-      - "3306:3306"
+      - "${MYSQL_PORT:-3306}:3306"
     volumes:
       - mysql-data-dev:/var/lib/mysql
     environment:
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-fileflow}
-      MYSQL_DATABASE: fileflow
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-fileflow}
       MYSQL_USER: ${MYSQL_USER:-fileflow}
       MYSQL_PASSWORD: ${MYSQL_PASSWORD:-fileflow}
     networks:
@@ -24,7 +24,7 @@ services:
       - --character-set-server=utf8mb4
       - --collation-server=utf8mb4_unicode_ci
     healthcheck:
-      test: [ "CMD", "mysqladmin", "ping", "-h", "fileflow-mysql-dev", "-u", "${MYSQL_USER:-fileflow}", "-p${MYSQL_PASSWORD:-fileflow}" ]
+      test: [ "CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "${MYSQL_USER:-fileflow}", "-p${MYSQL_PASSWORD:-fileflow}" ]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -41,17 +41,22 @@ services:
     image: minio/minio:latest
     container_name: fileflow-minio-dev
     ports:
-      - "9000:9000"
-      - "9001:9001"
+      - "${MINIO_API_PORT:-9000}:9000"
+      - "${MINIO_CONSOLE_PORT:-9001}:9001"
     environment:
-      - MINIO_ROOT_USER=minioadmin
-      - MINIO_ROOT_PASSWORD=minioadmin
+      - MINIO_ROOT_USER=${MINIO_ACCESS_KEY:-minioadmin}
+      - MINIO_ROOT_PASSWORD=${MINIO_SECRET_KEY:-minioadmin}
     volumes:
       - minio-data-dev:/data
     command: server /data --console-address ":9001"
     networks:
       - fileflow-network-dev
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
 
   elasticsearch:
     image: docker.elastic.co/elasticsearch/elasticsearch:7.17.0
@@ -60,15 +65,43 @@ services:
       - discovery.type=single-node
       - bootstrap.memory_lock=true
       - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
-      - xpack.security.enabled=false
+      - xpack.security.enabled=${ELASTIC_SECURITY_ENABLED:-false}
+      - ELASTIC_USERNAME=${ELASTICSEARCH_USERNAME:-elasticadmin}
+      - ELASTIC_PASSWORD=${ELASTICSEARCH_PASSWORD:-elasticadmin}
     ports:
-      - "9200:9200"
-      - "9300:9300"
+      - "${ELASTICSEARCH_PORT:-9200}:9200"
+      - "${ELASTICSEARCH_TRANSPORT_PORT:-9300}:9300"
     volumes:
       - elasticsearch-data-dev:/usr/share/elasticsearch/data
     networks:
       - fileflow-network-dev
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "curl -s http://localhost:9200/_cluster/health | grep -q '\"status\":\"green\"||\"status\":\"yellow\"'"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+
+  redis:
+    image: redis:7.0-alpine
+    container_name: fileflow-redis-dev
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis-data-dev:/data
+    command: redis-server --requirepass ${REDIS_PASSWORD:-fileflow} --appendonly yes
+    networks:
+      - fileflow-network-dev
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD:-fileflow}", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
 
 networks:
   fileflow-network-dev:
@@ -78,3 +111,4 @@ volumes:
   mysql-data-dev:
   minio-data-dev:
   elasticsearch-data-dev:
+  redis-data-dev:
