@@ -44,9 +44,6 @@ public class AuthControllerTest {
     @MockBean
     private AuthService authService;
 
-    @MockBean
-    private JwtAuthenticationFilter jwtAuthenticationFilter;
-
     @Autowired
     private ObjectMapper objectMapper;
 
@@ -74,6 +71,7 @@ public class AuthControllerTest {
                 .storageQuota(10737418240L) // 10GB
                 .storageUsed(0L)
                 .role("USER")
+                .authProvider("LOCAL") // Add auth provider
                 .createdAt(LocalDateTime.now())
                 .build();
 
@@ -136,6 +134,7 @@ public class AuthControllerTest {
                 .id(1L)
                 .username("testuser")
                 .email("test@example.com")
+                .authProvider("LOCAL") // Add auth provider
                 .build();
 
         JwtResponse jwtResponse = JwtResponse.builder()

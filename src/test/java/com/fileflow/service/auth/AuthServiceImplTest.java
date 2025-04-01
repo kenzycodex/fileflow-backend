@@ -77,6 +77,7 @@ public class AuthServiceImplTest {
                 .password("encodedPassword")
                 .status(User.Status.ACTIVE)
                 .role(User.UserRole.USER)
+                .authProvider(User.AuthProvider.LOCAL) // Initialize with LOCAL auth provider
                 .storageQuota(10737418240L) // 10GB
                 .storageUsed(0L)
                 .createdAt(LocalDateTime.now())
@@ -116,6 +117,7 @@ public class AuthServiceImplTest {
         assertEquals("refresh-token", response.getRefreshToken());
         assertEquals("Bearer", response.getTokenType());
         assertEquals("testuser", response.getUser().getUsername());
+        assertEquals("LOCAL", response.getUser().getAuthProvider()); // Verify auth provider
 
         // Verify user's last login was updated
         verify(userRepository).save(any(User.class));
@@ -217,6 +219,7 @@ public class AuthServiceImplTest {
         assertNotNull(response);
         assertEquals("new-access-token", response.getAccessToken());
         assertEquals("new-refresh-token", response.getRefreshToken());
+        assertEquals("LOCAL", response.getUser().getAuthProvider()); // Verify auth provider
 
         // Verify refresh token was saved
         verify(jwtService).saveRefreshToken(eq(1L), eq("new-refresh-token"));
@@ -242,7 +245,14 @@ public class AuthServiceImplTest {
     @Test
     public void testForgotPasswordSuccess() {
         // Setup mocks
-        when(userRepository.findByEmail("test@example.com")).thenReturn(Optional.of(testUser));
+        User localUser = User.builder()
+                .id(1L)
+                .username("testuser")
+                .email("test@example.com")
+                .authProvider(User.AuthProvider.LOCAL)
+                .build();
+
+        when(userRepository.findByEmail("test@example.com")).thenReturn(Optional.of(localUser));
 
         // Call service method
         ApiResponse response = authService.forgotPassword("test@example.com");
@@ -251,13 +261,15 @@ public class AuthServiceImplTest {
         assertNotNull(response);
         assertTrue(response.isSuccess());
         assertEquals("Password reset instructions sent to your email", response.getMessage());
+
+        // Verify token was set and user was saved
+        verify(userRepository).save(any(User.class));
     }
 
     @Test
     public void testForgotPasswordFailureUserNotFound() {
         // Setup mocks
-        when(userRepository.findByEmail("nonexistent@example.com"))
-                .thenReturn(Optional.empty());
+        when(userRepository.findByEmail("nonexistent@example.com")).thenReturn(Optional.empty());
 
         // Call service method and verify exception
         ResourceNotFoundException exception = assertThrows(ResourceNotFoundException.class, () -> {
@@ -268,15 +280,40 @@ public class AuthServiceImplTest {
     }
 
     @Test
+    public void testForgotPasswordFailureSocialLogin() {
+        // Setup mocks with a social login user
+        User socialUser = User.builder()
+                .id(1L)
+                .username("testuser")
+                .email("test@example.com")
+                .authProvider(User.AuthProvider.GOOGLE) // Social login provider
+                .build();
+
+        when(userRepository.findByEmail("test@example.com")).thenReturn(Optional.of(socialUser));
+
+        // Call service method and verify exception
+        BadRequestException exception = assertThrows(BadRequestException.class, () -> {
+            authService.forgotPassword("test@example.com");
+        });
+
+        assertEquals("Password reset is not available for social login accounts", exception.getMessage());
+    }
+
+    @Test
     public void testResetPasswordSuccess() {
         // Setup mocks
         PasswordResetRequest resetRequest = PasswordResetRequest.builder()
                 .email("test@example.com")
                 .newPassword("NewPass@123")
                 .confirmPassword("NewPass@123")
+                .token("valid-token")
                 .build();
 
-        when(userRepository.findByEmail("test@example.com")).thenReturn(Optional.of(testUser));
+        // Set reset token on test user
+        testUser.setResetPasswordToken("valid-token");
+        testUser.setResetPasswordTokenExpiry(LocalDateTime.now().plusHours(1)); // Not expired
+
+        when(userRepository.findByResetPasswordToken("valid-token")).thenReturn(Optional.of(testUser));
         when(passwordEncoder.encode("NewPass@123")).thenReturn("newEncodedPassword");
 
         // Call service method
@@ -287,8 +324,58 @@ public class AuthServiceImplTest {
         assertTrue(response.isSuccess());
         assertEquals("Password has been reset successfully", response.getMessage());
 
-        // Verify password was updated
+        // Verify password was updated and token cleared
         verify(userRepository).save(any(User.class));
+        assertNull(testUser.getResetPasswordToken());
+        assertNull(testUser.getResetPasswordTokenExpiry());
+    }
+
+    @Test
+    public void testResetPasswordFailureTokenExpired() {
+        // Setup mocks
+        PasswordResetRequest resetRequest = PasswordResetRequest.builder()
+                .email("test@example.com")
+                .newPassword("NewPass@123")
+                .confirmPassword("NewPass@123")
+                .token("expired-token")
+                .build();
+
+        // Set expired token on test user
+        testUser.setResetPasswordToken("expired-token");
+        testUser.setResetPasswordTokenExpiry(LocalDateTime.now().minusHours(1)); // Expired
+
+        when(userRepository.findByResetPasswordToken("expired-token")).thenReturn(Optional.of(testUser));
+
+        // Call service method and verify exception
+        BadRequestException exception = assertThrows(BadRequestException.class, () -> {
+            authService.resetPassword("expired-token", resetRequest);
+        });
+
+        assertEquals("Token has expired", exception.getMessage());
+    }
+
+    @Test
+    public void testResetPasswordFailurePasswordsMismatch() {
+        // Setup mocks
+        PasswordResetRequest resetRequest = PasswordResetRequest.builder()
+                .email("test@example.com")
+                .newPassword("NewPass@123")
+                .confirmPassword("DifferentPass@123") // Mismatch
+                .token("valid-token")
+                .build();
+
+        // Set token on test user
+        testUser.setResetPasswordToken("valid-token");
+        testUser.setResetPasswordTokenExpiry(LocalDateTime.now().plusHours(1)); // Not expired
+
+        when(userRepository.findByResetPasswordToken("valid-token")).thenReturn(Optional.of(testUser));
+
+        // Call service method and verify exception
+        BadRequestException exception = assertThrows(BadRequestException.class, () -> {
+            authService.resetPassword("valid-token", resetRequest);
+        });
+
+        assertEquals("Passwords do not match", exception.getMessage());
     }
 
     @Test

@@ -77,7 +77,7 @@ services:
       - fileflow-network-dev
     restart: unless-stopped
     healthcheck:
-      test: ["CMD-SHELL", "curl -s http://localhost:9200/_cluster/health | grep -q '\"status\":\"green\"||\"status\":\"yellow\"'"]
+      test: [ "CMD-SHELL", "curl -s http://localhost:9200/_cluster/health | grep -e '\"status\":\"green\"' -e '\"status\":\"yellow\"'" ]
       interval: 30s
       timeout: 10s
       retries: 3

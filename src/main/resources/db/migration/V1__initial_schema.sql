@@ -1,3 +1,4 @@
+-- V1__initial_schema.sql
 -- Create users table
 CREATE TABLE users (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,
@@ -10,8 +11,10 @@ CREATE TABLE users (
     enabled BOOLEAN NOT NULL DEFAULT TRUE,
     verification_token VARCHAR(100),
     verification_token_expiry TIMESTAMP,
-    reset_password_token VARCHAR(100),
-    reset_password_token_expiry TIMESTAMP,
+    reset_password_token VARCHAR(255) NULL,
+    reset_password_token_expiry DATETIME NULL,
+    firebase_uid VARCHAR(255) NULL,
+    auth_provider ENUM('LOCAL', 'GOOGLE', 'GITHUB', 'MICROSOFT', 'APPLE') NOT NULL DEFAULT 'LOCAL',
     created_at TIMESTAMP,
     updated_at TIMESTAMP,
     last_login TIMESTAMP,
@@ -129,12 +132,12 @@ CREATE TABLE shares (
 CREATE TABLE activities (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,
     user_id BIGINT NOT NULL,
-    action VARCHAR(50) NOT NULL,
+    activity_type VARCHAR(50) NOT NULL,
     item_type VARCHAR(20),
     item_id BIGINT,
-    details VARCHAR(255),
+    description VARCHAR(255),
     ip_address VARCHAR(50),
-    created_at TIMESTAMP,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     device_info VARCHAR(255),
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
@@ -284,6 +287,8 @@ CREATE TABLE notifications (
 );
 
 -- Create indices for performance
+CREATE INDEX idx_firebase_uid ON users(firebase_uid);
+CREATE INDEX idx_reset_password_token ON users(reset_password_token);
 CREATE INDEX idx_folders_user_id ON folders(user_id);
 CREATE INDEX idx_folders_parent_folder_id ON folders(parent_folder_id);
 CREATE INDEX idx_files_user_id ON files(user_id);

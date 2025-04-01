@@ -4,7 +4,7 @@
     <option name="ALTERNATIVE_JRE_PATH_ENABLED" value="true" />
     <option name="MAIN_CLASS_NAME" value="com.fileflow.FileFlowApplication" />
     <module name="fileflow-backend" />
-    <option name="VM_PARAMETERS" value="-Dspring.profiles.active=dev" />
+    <option name="VM_PARAMETERS" value="-Dspring.profiles.active=dev -Dspring.data.elasticsearch.repositories.enabled=false" />
     <extension name="coverage">
       <pattern>
         <option name="PATTERN" value="com.fileflow.test.helpers.*" />

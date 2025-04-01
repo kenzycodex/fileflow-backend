@@ -13,6 +13,7 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -30,7 +31,7 @@ public class SocialAuthController {
     private final JwtTokenProvider tokenProvider;
     private final JwtService jwtService;
 
-    @PostMapping("/firebase")
+    @PostMapping(value = "/firebase", produces = MediaType.APPLICATION_JSON_VALUE)
     @Operation(summary = "Authenticate with Firebase token")
     public ResponseEntity<JwtResponse> authenticateWithFirebase(@Valid @RequestBody FirebaseAuthRequest request) {
         log.info("Processing social login with Firebase");
@@ -53,12 +54,24 @@ public class SocialAuthController {
                 .user(userResponse)
                 .build();
 
-        return ResponseEntity.ok(jwtResponse);
+        // Use ResponseEntity.ok() and explicitly set Content-Type
+        return ResponseEntity
+                .ok()
+                .header("Content-Type", MediaType.APPLICATION_JSON_VALUE) // Explicit header for content type
+                .contentType(MediaType.APPLICATION_JSON) // Belt and suspenders approach
+                .body(jwtResponse);
     }
 
-    @PostMapping("/logout")
+    @PostMapping(value = "/logout", produces = MediaType.APPLICATION_JSON_VALUE)
     @Operation(summary = "Logout user")
     public ResponseEntity<ApiResponse> logout(@RequestParam(required = false) String refreshToken) {
-        return ResponseEntity.ok(authService.logout(refreshToken));
+        ApiResponse response = authService.logout(refreshToken);
+
+        // Use ResponseEntity.ok() and explicitly set Content-Type
+        return ResponseEntity
+                .ok()
+                .header("Content-Type", MediaType.APPLICATION_JSON_VALUE) // Explicit header for content type
+                .contentType(MediaType.APPLICATION_JSON) // Belt and suspenders approach
+                .body(response);
     }
 }

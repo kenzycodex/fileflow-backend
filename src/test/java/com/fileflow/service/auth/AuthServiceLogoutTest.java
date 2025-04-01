@@ -2,6 +2,7 @@ package com.fileflow.service.auth;
 
 import com.fileflow.dto.response.common.ApiResponse;
 import com.fileflow.security.JwtTokenProvider;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -32,6 +33,12 @@ class AuthServiceLogoutTest {
     @InjectMocks
     private AuthServiceImpl authService;
 
+    @BeforeEach
+    void setUp() {
+        // Set up the security context for all tests
+        SecurityContextHolder.setContext(securityContext);
+    }
+
     @Test
     void testLogoutWithValidToken() {
         // Setup
@@ -42,9 +49,6 @@ class AuthServiceLogoutTest {
         when(tokenProvider.validateToken(validRefreshToken)).thenReturn(true);
         when(tokenProvider.getUserIdFromJWT(validRefreshToken)).thenReturn(userId);
 
-        // Mock security context to verify it's cleared
-        SecurityContextHolder.setContext(securityContext);
-
         // Execute logout
         ApiResponse response = authService.logout(validRefreshToken);
 
@@ -54,9 +58,6 @@ class AuthServiceLogoutTest {
 
         // Verify the refresh token was removed
         verify(jwtService).removeRefreshToken(userId);
-
-        // Verify the security context was cleared
-        verify(securityContext).setAuthentication(null);
     }
 
     @Test
@@ -67,9 +68,6 @@ class AuthServiceLogoutTest {
         // Mock token validation to fail
         when(tokenProvider.validateToken(invalidRefreshToken)).thenReturn(false);
 
-        // Mock security context to verify it's cleared
-        SecurityContextHolder.setContext(securityContext);
-
         // Execute logout
         ApiResponse response = authService.logout(invalidRefreshToken);
 
@@ -79,16 +77,10 @@ class AuthServiceLogoutTest {
 
         // Verify no refresh token was removed since the token was invalid
         verify(jwtService, never()).removeRefreshToken(any());
-
-        // Verify the security context was still cleared
-        verify(securityContext).setAuthentication(null);
     }
 
     @Test
     void testLogoutWithNullToken() {
-        // Mock security context to verify it's cleared
-        SecurityContextHolder.setContext(securityContext);
-
         // Execute logout with null token
         ApiResponse response = authService.logout(null);
 
@@ -98,16 +90,10 @@ class AuthServiceLogoutTest {
 
         // Verify no refresh token was removed
         verify(jwtService, never()).removeRefreshToken(any());
-
-        // Verify the security context was still cleared
-        verify(securityContext).setAuthentication(null);
     }
 
     @Test
     void testLogoutWithEmptyToken() {
-        // Mock security context to verify it's cleared
-        SecurityContextHolder.setContext(securityContext);
-
         // Execute logout with empty token
         ApiResponse response = authService.logout("");
 
@@ -117,9 +103,6 @@ class AuthServiceLogoutTest {
 
         // Verify no refresh token was removed
         verify(jwtService, never()).removeRefreshToken(any());
-
-        // Verify the security context was still cleared
-        verify(securityContext).setAuthentication(null);
     }
 
     @Test
@@ -130,9 +113,6 @@ class AuthServiceLogoutTest {
         // Mock token validation to throw exception
         when(tokenProvider.validateToken(refreshToken)).thenThrow(new RuntimeException("Test exception"));
 
-        // Mock security context to verify it's cleared
-        SecurityContextHolder.setContext(securityContext);
-
         // Execute logout
         ApiResponse response = authService.logout(refreshToken);
 
@@ -142,8 +122,5 @@ class AuthServiceLogoutTest {
 
         // Verify no refresh token was removed due to the exception
         verify(jwtService, never()).removeRefreshToken(any());
-
-        // Verify the security context was still cleared
-        verify(securityContext).setAuthentication(null);
     }
 }

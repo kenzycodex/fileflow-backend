@@ -63,8 +63,9 @@ public class ElasticSearchConfig {
                 })
                 .setRequestConfigCallback(requestConfigBuilder ->
                         requestConfigBuilder
-                                .setConnectTimeout(5000)
-                                .setSocketTimeout(60000));
+                                .setConnectTimeout(10000)
+                                .setSocketTimeout(120000)
+                                .setConnectionRequestTimeout(10000));
 
         RestHighLevelClient client = new RestHighLevelClient(builder);
 

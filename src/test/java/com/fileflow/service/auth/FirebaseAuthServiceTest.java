@@ -24,6 +24,7 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -50,6 +51,16 @@ public class FirebaseAuthServiceTest {
     @BeforeEach
     public void setup() {
         ReflectionTestUtils.setField(firebaseAuthService, "firebaseEnabled", true);
+
+        // Make mocks lenient for different test scenarios
+        lenient().when(authService.createFirebaseUser(
+                        anyString(), anyString(), anyString(),
+                        anyString(), anyString(), anyString(), anyString()))
+                .thenReturn(UserResponse.builder()
+                        .id(1L)
+                        .email(email)
+                        .username("testuser")
+                        .build());
     }
 
     @Test
@@ -91,15 +102,15 @@ public class FirebaseAuthServiceTest {
         try (MockedStatic<FirebaseAuth> firebaseAuthMock = mockStatic(FirebaseAuth.class)) {
             // Mock FirebaseAuth and token
             firebaseAuthMock.when(FirebaseAuth::getInstance).thenReturn(firebaseAuth);
-            when(firebaseAuth.verifyIdToken(validToken)).thenReturn(firebaseToken);
-            when(firebaseToken.getUid()).thenReturn(uid);
-            when(firebaseToken.getEmail()).thenReturn(email);
-            when(firebaseToken.getName()).thenReturn(name);
-            when(firebaseToken.getIssuer()).thenReturn(provider);
+            lenient().when(firebaseAuth.verifyIdToken(validToken)).thenReturn(firebaseToken);
+            lenient().when(firebaseToken.getUid()).thenReturn(uid);
+            lenient().when(firebaseToken.getEmail()).thenReturn(email);
+            lenient().when(firebaseToken.getName()).thenReturn(name);
+            lenient().when(firebaseToken.getIssuer()).thenReturn(provider);
 
             Map<String, Object> claims = new HashMap<>();
             claims.put("picture", "https://example.com/profile.jpg");
-            when(firebaseToken.getClaims()).thenReturn(claims);
+            lenient().when(firebaseToken.getClaims()).thenReturn(claims);
 
             // Mock existing user
             User existingUser = User.builder()
@@ -137,15 +148,15 @@ public class FirebaseAuthServiceTest {
         try (MockedStatic<FirebaseAuth> firebaseAuthMock = mockStatic(FirebaseAuth.class)) {
             // Mock FirebaseAuth and token
             firebaseAuthMock.when(FirebaseAuth::getInstance).thenReturn(firebaseAuth);
-            when(firebaseAuth.verifyIdToken(validToken)).thenReturn(firebaseToken);
-            when(firebaseToken.getUid()).thenReturn(uid);
-            when(firebaseToken.getEmail()).thenReturn(email);
-            when(firebaseToken.getName()).thenReturn(name);
-            when(firebaseToken.getIssuer()).thenReturn(provider);
+            lenient().when(firebaseAuth.verifyIdToken(validToken)).thenReturn(firebaseToken);
+            lenient().when(firebaseToken.getUid()).thenReturn(uid);
+            lenient().when(firebaseToken.getEmail()).thenReturn(email);
+            lenient().when(firebaseToken.getName()).thenReturn(name);
+            lenient().when(firebaseToken.getIssuer()).thenReturn(provider);
 
             Map<String, Object> claims = new HashMap<>();
             claims.put("picture", "https://example.com/profile.jpg");
-            when(firebaseToken.getClaims()).thenReturn(claims);
+            lenient().when(firebaseToken.getClaims()).thenReturn(claims);
 
             // Mock new user (user doesn't exist)
             when(authService.findUserByEmail(email)).thenReturn(Optional.empty());
@@ -187,15 +198,16 @@ public class FirebaseAuthServiceTest {
         try (MockedStatic<FirebaseAuth> firebaseAuthMock = mockStatic(FirebaseAuth.class)) {
             // Mock FirebaseAuth and token with null email
             firebaseAuthMock.when(FirebaseAuth::getInstance).thenReturn(firebaseAuth);
-            when(firebaseAuth.verifyIdToken(validToken)).thenReturn(firebaseToken);
-            when(firebaseToken.getUid()).thenReturn(uid);
-            when(firebaseToken.getEmail()).thenReturn(null); // NULL EMAIL
-            when(firebaseToken.getName()).thenReturn(name);
-            when(firebaseToken.getIssuer()).thenReturn(provider);
+            lenient().when(firebaseAuth.verifyIdToken(validToken)).thenReturn(firebaseToken);
+            lenient().when(firebaseToken.getUid()).thenReturn(uid);
+            // Return null for email
+            lenient().when(firebaseToken.getEmail()).thenReturn(null);
+            lenient().when(firebaseToken.getName()).thenReturn(name);
+            lenient().when(firebaseToken.getIssuer()).thenReturn(provider);
 
             Map<String, Object> claims = new HashMap<>();
             claims.put("picture", "https://example.com/profile.jpg");
-            when(firebaseToken.getClaims()).thenReturn(claims);
+            lenient().when(firebaseToken.getClaims()).thenReturn(claims);
 
             // Test that BadRequestException is thrown for null email
             BadRequestException exception = assertThrows(BadRequestException.class, () -> {
@@ -233,28 +245,34 @@ public class FirebaseAuthServiceTest {
         try (MockedStatic<FirebaseAuth> firebaseAuthMock = mockStatic(FirebaseAuth.class)) {
             // Mock FirebaseAuth and token with invalid email format
             firebaseAuthMock.when(FirebaseAuth::getInstance).thenReturn(firebaseAuth);
-            when(firebaseAuth.verifyIdToken(validToken)).thenReturn(firebaseToken);
-            when(firebaseToken.getUid()).thenReturn(uid);
-            when(firebaseToken.getEmail()).thenReturn("invalid-email-format"); // Invalid format
-            when(firebaseToken.getName()).thenReturn(name);
-            when(firebaseToken.getIssuer()).thenReturn(provider);
+            lenient().when(firebaseAuth.verifyIdToken(validToken)).thenReturn(firebaseToken);
+            lenient().when(firebaseToken.getUid()).thenReturn(uid);
+            lenient().when(firebaseToken.getEmail()).thenReturn("invalid-email-format"); // Invalid format
+            lenient().when(firebaseToken.getName()).thenReturn(name);
+            lenient().when(firebaseToken.getIssuer()).thenReturn(provider);
 
             Map<String, Object> claims = new HashMap<>();
-            when(firebaseToken.getClaims()).thenReturn(claims);
+            lenient().when(firebaseToken.getClaims()).thenReturn(claims);
 
             // Mock that we're creating a new user
             when(authService.findUserByEmail(anyString())).thenReturn(Optional.empty());
 
-            // Mock the user creation
+            // Mock the user creation with more specific parameters
             UserResponse expectedResponse = UserResponse.builder()
                     .id(1L)
                     .email("invalid-email-format")
-                    .username("invalidemail")
+                    .username("invalidemailformat")
                     .build();
 
+            // Use more specific argument matching
             when(authService.createFirebaseUser(
-                    anyString(), anyString(), anyString(), anyString(),
-                    anyString(), anyString(), anyString()))
+                    eq(uid),
+                    eq("invalid-email-format"),
+                    anyString(),
+                    eq("Test"),
+                    eq("User"),
+                    isNull(),
+                    eq(provider)))
                     .thenReturn(expectedResponse);
 
             // Test the method calls our fallback username generation
@@ -262,7 +280,16 @@ public class FirebaseAuthServiceTest {
 
             // Cannot easily verify the exact username, but we can verify the user was created
             assertNotNull(response);
-            verify(authService).createFirebaseUser(any(), any(), any(), any(), any(), any(), any());
+
+            // Use more specific verification
+            verify(authService).createFirebaseUser(
+                    eq(uid),
+                    eq("invalid-email-format"),
+                    anyString(),
+                    eq("Test"),
+                    eq("User"),
+                    isNull(),
+                    eq(provider));
         } catch (FirebaseAuthException e) {
             throw new RuntimeException(e);
         }
