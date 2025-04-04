@@ -1,115 +1,191 @@
 package com.fileflow.service.auth;
 
+import com.fileflow.config.JwtConfig;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
-import org.mockito.junit.jupiter.MockitoExtension;
+import org.mockito.Mock;
+import org.mockito.MockitoAnnotations;
+import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.data.redis.core.ValueOperations;
+
+import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.*;
+import static org.mockito.Mockito.*;
 
-@ExtendWith(MockitoExtension.class)
-public class JwtServiceTest {
+class JwtServiceTest {
+
+    @Mock
+    private RedisTemplate<String, String> redisTemplate;
+
+    @Mock
+    private JwtConfig jwtConfig;
+
+    @Mock
+    private ValueOperations<String, String> valueOperations;
 
     @InjectMocks
     private JwtService jwtService;
 
-    private final Long userId = 1L;
-    private final String refreshToken = "sample-refresh-token";
-    private final String accessToken = "sample-access-token";
+    private final Long USER_ID = 1L;
+    private final String ACCESS_TOKEN = "sample-access-token";
+    private final String REFRESH_TOKEN = "sample-refresh-token";
 
     @BeforeEach
-    public void setup() {
-        // Reset any state between tests if needed
+    void setUp() {
+        MockitoAnnotations.openMocks(this);
+        when(redisTemplate.opsForValue()).thenReturn(valueOperations);
+        when(jwtConfig.getExpiration()).thenReturn(3600000L);
+        when(jwtConfig.getRefreshExpiration()).thenReturn(604800000L);
     }
 
     @Test
-    public void testSaveAndValidateRefreshToken() {
-        // Save a refresh token
-        jwtService.saveRefreshToken(userId, refreshToken);
+    void saveAccessToken_shouldSaveTokenWithExpiration() {
+        // When
+        jwtService.saveAccessToken(USER_ID, ACCESS_TOKEN);
 
-        // Validate the saved token
-        boolean isValid = jwtService.validateRefreshToken(userId, refreshToken);
-
-        // Assert
-        assertTrue(isValid, "Refresh token should be valid");
+        // Then
+        verify(valueOperations).set(eq("token:access:1"), eq(ACCESS_TOKEN), eq(3600000L), eq(TimeUnit.MILLISECONDS));
+        verify(redisTemplate).opsForSet().add(eq("user:tokens:1"), eq("token:access:1"));
     }
 
     @Test
-    public void testValidateInvalidRefreshToken() {
-        // Save a refresh token
-        jwtService.saveRefreshToken(userId, refreshToken);
+    void saveRefreshToken_shouldSaveTokenWithExpiration() {
+        // When
+        jwtService.saveRefreshToken(USER_ID, REFRESH_TOKEN);
 
-        // Validate with wrong token
-        boolean isValidWrongToken = jwtService.validateRefreshToken(userId, "wrong-token");
-
-        // Validate with wrong user ID
-        boolean isValidWrongUser = jwtService.validateRefreshToken(2L, refreshToken);
-
-        // Assert
-        assertFalse(isValidWrongToken, "Wrong token should be invalid");
-        assertFalse(isValidWrongUser, "Token for wrong user should be invalid");
+        // Then
+        verify(valueOperations).set(eq("token:refresh:1"), eq(REFRESH_TOKEN), eq(604800000L), eq(TimeUnit.MILLISECONDS));
+        verify(redisTemplate).opsForSet().add(eq("user:tokens:1"), eq("token:refresh:1"));
     }
 
     @Test
-    public void testRemoveRefreshToken() {
-        // Save a refresh token
-        jwtService.saveRefreshToken(userId, refreshToken);
+    void getLatestAccessToken_shouldReturnToken() {
+        // Given
+        when(valueOperations.get("token:access:1")).thenReturn(ACCESS_TOKEN);
 
-        // Remove the token
-        jwtService.removeRefreshToken(userId);
+        // When
+        String token = jwtService.getLatestAccessToken(USER_ID);
 
-        // Validate the token after removal
-        boolean isValid = jwtService.validateRefreshToken(userId, refreshToken);
-
-        // Assert
-        assertFalse(isValid, "Token should be invalid after removal");
+        // Then
+        assertEquals(ACCESS_TOKEN, token);
+        verify(valueOperations).get("token:access:1");
     }
 
     @Test
-    public void testOverwriteRefreshToken() {
-        // Save an initial token
-        jwtService.saveRefreshToken(userId, "initial-token");
+    void validateRefreshToken_shouldReturnTrueWhenValid() {
+        // Given
+        when(valueOperations.get("token:refresh:1")).thenReturn(REFRESH_TOKEN);
 
-        // Save a new token for the same user
-        jwtService.saveRefreshToken(userId, refreshToken);
+        // When
+        boolean isValid = jwtService.validateRefreshToken(USER_ID, REFRESH_TOKEN);
 
-        // Validate both tokens
-        boolean isInitialValid = jwtService.validateRefreshToken(userId, "initial-token");
-        boolean isNewValid = jwtService.validateRefreshToken(userId, refreshToken);
-
-        // Assert
-        assertFalse(isInitialValid, "Initial token should be invalid after overwriting");
-        assertTrue(isNewValid, "New token should be valid");
+        // Then
+        assertTrue(isValid);
+        verify(valueOperations).get("token:refresh:1");
     }
 
     @Test
-    public void testSaveAndGetAccessToken() {
-        // Save an access token
-        jwtService.saveAccessToken(userId, accessToken);
+    void validateRefreshToken_shouldReturnFalseWhenInvalid() {
+        // Given
+        when(valueOperations.get("token:refresh:1")).thenReturn("different-token");
 
-        // Get the latest access token
-        String savedToken = jwtService.getLatestAccessToken(userId);
+        // When
+        boolean isValid = jwtService.validateRefreshToken(USER_ID, REFRESH_TOKEN);
 
-        // Assert
-        assertEquals(accessToken, savedToken, "Retrieved access token should match the saved one");
+        // Then
+        assertFalse(isValid);
+        verify(valueOperations).get("token:refresh:1");
     }
 
     @Test
-    public void testLogoutRemovesBothTokens() {
-        // Save both token types
-        jwtService.saveAccessToken(userId, accessToken);
-        jwtService.saveRefreshToken(userId, refreshToken);
+    void isTokenBlacklisted_shouldReturnTrueWhenBlacklisted() {
+        // Given
+        when(redisTemplate.hasKey("token:blacklisted:" + ACCESS_TOKEN)).thenReturn(true);
 
-        // Verify tokens are saved
-        assertNotNull(jwtService.getLatestAccessToken(userId));
-        assertTrue(jwtService.validateRefreshToken(userId, refreshToken));
+        // When
+        boolean isBlacklisted = jwtService.isTokenBlacklisted(ACCESS_TOKEN);
 
-        // Remove tokens (logout)
-        jwtService.removeRefreshToken(userId);
+        // Then
+        assertTrue(isBlacklisted);
+        verify(redisTemplate).hasKey("token:blacklisted:" + ACCESS_TOKEN);
+    }
 
-        // Verify both tokens are removed
-        assertNull(jwtService.getLatestAccessToken(userId));
-        assertFalse(jwtService.validateRefreshToken(userId, refreshToken));
+    @Test
+    void blacklistToken_shouldBlacklistToken() {
+        // When
+        jwtService.blacklistToken(ACCESS_TOKEN, 3600000);
+
+        // Then
+        verify(valueOperations).set(
+                eq("token:blacklisted:" + ACCESS_TOKEN),
+                eq("blacklisted"),
+                eq(3600000L),
+                eq(TimeUnit.MILLISECONDS)
+        );
+    }
+
+    @Test
+    void removeRefreshToken_shouldRemoveTokens() {
+        // Given
+        when(valueOperations.get("token:refresh:1")).thenReturn(REFRESH_TOKEN);
+        when(valueOperations.get("token:access:1")).thenReturn(ACCESS_TOKEN);
+
+        // When
+        jwtService.removeRefreshToken(USER_ID);
+
+        // Then
+        verify(redisTemplate).delete("token:refresh:1");
+        verify(redisTemplate).delete("token:access:1");
+        verify(valueOperations).set(
+                eq("token:blacklisted:" + REFRESH_TOKEN),
+                eq("blacklisted"),
+                eq(604800000L),
+                eq(TimeUnit.MILLISECONDS)
+        );
+        verify(valueOperations).set(
+                eq("token:blacklisted:" + ACCESS_TOKEN),
+                eq("blacklisted"),
+                eq(3600000L),
+                eq(TimeUnit.MILLISECONDS)
+        );
+    }
+
+    @Test
+    void recordFailedLogin_shouldIncrementCounter() {
+        // Given
+        String username = "testuser";
+        when(valueOperations.increment("login:failed:" + username)).thenReturn(1L);
+
+        // When
+        boolean shouldLock = jwtService.recordFailedLogin(username);
+
+        // Then
+        assertFalse(shouldLock);
+        verify(valueOperations).increment("login:failed:" + username);
+        verify(redisTemplate).expire(eq("login:failed:" + username), eq(1L), eq(TimeUnit.HOURS));
+    }
+
+    @Test
+    void recordFailedLogin_shouldLockAccountAfterMaxAttempts() {
+        // Given
+        String username = "testuser";
+        when(valueOperations.increment("login:failed:" + username)).thenReturn(5L);
+
+        // When
+        boolean shouldLock = jwtService.recordFailedLogin(username);
+
+        // Then
+        assertTrue(shouldLock);
+        verify(valueOperations).increment("login:failed:" + username);
+        verify(redisTemplate).expire(eq("login:failed:" + username), eq(1L), eq(TimeUnit.HOURS));
+        verify(valueOperations).set(
+                eq("user:lockout:" + username),
+                eq("locked"),
+                eq(15L),
+                eq(TimeUnit.MINUTES)
+        );
     }
 }

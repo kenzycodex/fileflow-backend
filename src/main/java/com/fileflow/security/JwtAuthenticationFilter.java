@@ -2,6 +2,10 @@ package com.fileflow.security;
 
 import com.fileflow.config.JwtConfig;
 import com.fileflow.service.auth.JwtService;
+import jakarta.servlet.FilterChain;
+import jakarta.servlet.ServletException;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -13,10 +17,6 @@ import org.springframework.util.AntPathMatcher;
 import org.springframework.util.StringUtils;
 import org.springframework.web.filter.OncePerRequestFilter;
 
-import jakarta.servlet.FilterChain;
-import jakarta.servlet.ServletException;
-import jakarta.servlet.http.HttpServletRequest;
-import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
@@ -43,6 +43,8 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             "/configuration/**",
             "/api/v1/shares/links/**",
             "/api/v1/health",
+            "/api/v1/users/check-username",
+            "/api/v1/users/check-email",
             "/",
             "/favicon.ico",
             "/static/**",
@@ -64,23 +66,40 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         try {
             String jwt = getJwtFromRequest(request);
 
-            if (StringUtils.hasText(jwt) && tokenProvider.validateToken(jwt)) {
-                Long userId = tokenProvider.getUserIdFromJWT(jwt);
-
-                // Check if the token belongs to a logged-out session
-                // Only validate access tokens against user sessions
-                if (!jwt.equals(jwtService.getLatestAccessToken(userId))) {
-                    log.warn("Attempt to use an invalidated access token for user ID: {}", userId);
+            if (StringUtils.hasText(jwt)) {
+                // First check if token is blacklisted
+                if (jwtService.isTokenBlacklisted(jwt)) {
+                    log.warn("Attempt to use a blacklisted token");
                     filterChain.doFilter(request, response);
                     return;
                 }
 
-                UserDetails userDetails = customUserDetailsService.loadUserById(userId);
-                UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
-                        userDetails, null, userDetails.getAuthorities());
-                authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
+                // Validate token
+                if (tokenProvider.validateToken(jwt)) {
+                    Long userId = tokenProvider.getUserIdFromJWT(jwt);
+                    String tokenType = tokenProvider.getTokenTypeFromJWT(jwt);
 
-                SecurityContextHolder.getContext().setAuthentication(authentication);
+                    // Only validate access tokens against user sessions
+                    if ("access".equals(tokenType)) {
+                        String latestToken = jwtService.getLatestAccessToken(userId);
+
+                        // Check if token is current
+                        if (latestToken == null || !jwt.equals(latestToken)) {
+                            log.warn("Attempt to use an invalidated access token for user ID: {}", userId);
+                            filterChain.doFilter(request, response);
+                            return;
+                        }
+
+                        // Load user and set authentication
+                        UserDetails userDetails = customUserDetailsService.loadUserById(userId);
+                        UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
+                                userDetails, null, userDetails.getAuthorities());
+                        authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
+
+                        SecurityContextHolder.getContext().setAuthentication(authentication);
+                        log.debug("Set authentication for user ID: {}", userId);
+                    }
+                }
             }
         } catch (Exception ex) {
             log.error("Could not set user authentication in security context", ex);

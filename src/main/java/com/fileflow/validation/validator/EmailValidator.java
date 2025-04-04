@@ -1,13 +1,13 @@
 package com.fileflow.validation.validator;
 
 import com.fileflow.validation.annotation.ValidEmail;
-
 import jakarta.validation.ConstraintValidator;
 import jakarta.validation.ConstraintValidatorContext;
+
 import java.util.regex.Pattern;
 
 /**
- * Email validator implementation for ValidEmail annotation
+ * Validator for email addresses
  */
 public class EmailValidator implements ConstraintValidator<ValidEmail, String> {
 

@@ -1,5 +1,6 @@
 package com.fileflow.config;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.CacheControl;
 import org.springframework.http.MediaType;
@@ -9,6 +10,8 @@ import org.springframework.web.servlet.config.annotation.ResourceHandlerRegistry
 import org.springframework.web.servlet.config.annotation.ViewControllerRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
+import com.fileflow.service.config.EnvPropertyService;
+
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -16,6 +19,9 @@ import java.util.concurrent.TimeUnit;
  */
 @Configuration
 public class WebMvcConfig implements WebMvcConfigurer {
+
+    @Autowired
+    private EnvPropertyService envPropertyService;
 
     @Override
     public void addResourceHandlers(ResourceHandlerRegistry registry) {
@@ -47,11 +53,18 @@ public class WebMvcConfig implements WebMvcConfigurer {
 
     @Override
     public void addCorsMappings(CorsRegistry registry) {
+        // Get allowed origins from environment or config
+        String allowedOriginsStr = envPropertyService.getProperty("ALLOWED_ORIGINS",
+                "http://localhost:3000,http://localhost:4173");
+
+        String[] allowedOrigins = allowedOriginsStr.split(",");
+
         registry.addMapping("/**")
-                .allowedOrigins("*")
+                .allowedOrigins(allowedOrigins)
                 .allowedMethods("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS")
                 .allowedHeaders("*")
-                .exposedHeaders("Authorization", "Content-Disposition")  // Added Content-Disposition for file downloads
+                .exposedHeaders("Authorization", "Content-Disposition")
+                .allowCredentials(true)
                 .maxAge(3600);
     }
 

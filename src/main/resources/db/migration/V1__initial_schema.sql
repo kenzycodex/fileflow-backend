@@ -1,5 +1,5 @@
 -- V1__initial_schema.sql
--- Create users table
+-- Create users table with enhanced security fields
 CREATE TABLE users (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,
     first_name VARCHAR(50) NOT NULL,
@@ -9,8 +9,11 @@ CREATE TABLE users (
     password VARCHAR(100) NOT NULL,
     profile_image_path VARCHAR(255),
     enabled BOOLEAN NOT NULL DEFAULT TRUE,
+    email_verified BOOLEAN NOT NULL DEFAULT FALSE,
     verification_token VARCHAR(100),
     verification_token_expiry TIMESTAMP,
+    email_verification_token VARCHAR(100),
+    email_verification_token_expiry TIMESTAMP,
     reset_password_token VARCHAR(255) NULL,
     reset_password_token_expiry DATETIME NULL,
     firebase_uid VARCHAR(255) NULL,
@@ -18,12 +21,32 @@ CREATE TABLE users (
     created_at TIMESTAMP,
     updated_at TIMESTAMP,
     last_login TIMESTAMP,
+    last_login_ip VARCHAR(50),
+    registration_ip VARCHAR(50),
     last_username_change TIMESTAMP,
+    password_updated_at TIMESTAMP,
+    last_logout_time VARCHAR(100),
     status VARCHAR(20) NOT NULL,
     storage_quota BIGINT NOT NULL,
     storage_used BIGINT NOT NULL DEFAULT 0,
     storage_limit BIGINT,
     role VARCHAR(20) NOT NULL
+);
+
+-- Create user_mfa table for multi-factor authentication
+CREATE TABLE user_mfa (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    user_id BIGINT NOT NULL,
+    secret VARCHAR(100) NOT NULL,
+    enabled BOOLEAN NOT NULL DEFAULT FALSE,
+    backup_codes VARCHAR(1000),
+    created_at TIMESTAMP,
+    verified_at TIMESTAMP,
+    last_used_at TIMESTAMP,
+    recovery_email VARCHAR(100),
+    method VARCHAR(20) DEFAULT 'TOTP',
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    UNIQUE KEY unique_user_mfa (user_id)
 );
 
 -- Create roles table
@@ -128,7 +151,7 @@ CREATE TABLE shares (
     FOREIGN KEY (recipient_id) REFERENCES users(id) ON DELETE SET NULL
 );
 
--- Create activities table
+-- Create activities table with enhanced logging
 CREATE TABLE activities (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,
     user_id BIGINT NOT NULL,
@@ -139,7 +162,28 @@ CREATE TABLE activities (
     ip_address VARCHAR(50),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     device_info VARCHAR(255),
+    session_id VARCHAR(100),
+    browser VARCHAR(100),
+    operating_system VARCHAR(100),
+    status VARCHAR(20),
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+-- Create security_events table for tracking security activities
+CREATE TABLE security_events (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    user_id BIGINT,
+    event_type VARCHAR(50) NOT NULL,
+    ip_address VARCHAR(50),
+    device_info VARCHAR(255),
+    browser VARCHAR(100),
+    operating_system VARCHAR(100),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    success BOOLEAN NOT NULL DEFAULT FALSE,
+    details VARCHAR(1000),
+    INDEX idx_security_events_user_id (user_id),
+    INDEX idx_security_events_event_type (event_type),
+    INDEX idx_security_events_created_at (created_at)
 );
 
 -- Create devices table
@@ -153,6 +197,9 @@ CREATE TABLE devices (
     push_token VARCHAR(255),
     created_at TIMESTAMP,
     last_active TIMESTAMP,
+    ip_address VARCHAR(50),
+    user_agent VARCHAR(255),
+    is_trusted BOOLEAN NOT NULL DEFAULT FALSE,
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
@@ -289,6 +336,7 @@ CREATE TABLE notifications (
 -- Create indices for performance
 CREATE INDEX idx_firebase_uid ON users(firebase_uid);
 CREATE INDEX idx_reset_password_token ON users(reset_password_token);
+CREATE INDEX idx_email_verification_token ON users(email_verification_token);
 CREATE INDEX idx_folders_user_id ON folders(user_id);
 CREATE INDEX idx_folders_parent_folder_id ON folders(parent_folder_id);
 CREATE INDEX idx_files_user_id ON files(user_id);
@@ -306,3 +354,5 @@ CREATE INDEX idx_notifications_user_id ON notifications(user_id);
 CREATE INDEX idx_notification_preferences_user_id ON notification_preferences(user_id);
 CREATE INDEX idx_storage_chunks_upload_id ON storage_chunks(upload_id);
 CREATE INDEX idx_storage_chunks_user_id ON storage_chunks(user_id);
+CREATE INDEX idx_devices_user_id ON devices(user_id);
+CREATE INDEX idx_user_mfa_user_id ON user_mfa(user_id);

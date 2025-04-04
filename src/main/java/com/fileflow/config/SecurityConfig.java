@@ -4,6 +4,7 @@ import com.fileflow.security.CustomUserDetailsService;
 import com.fileflow.security.JwtAuthenticationEntryPoint;
 import com.fileflow.security.JwtAuthenticationFilter;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -18,9 +19,13 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.security.web.header.writers.ReferrerPolicyHeaderWriter;
+import org.springframework.security.web.header.writers.XXssProtectionHeaderWriter;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
+
+import com.fileflow.service.config.EnvPropertyService;
 
 import java.util.Arrays;
 import java.util.List;
@@ -37,6 +42,10 @@ public class SecurityConfig {
     private final CustomUserDetailsService customUserDetailsService;
     private final JwtAuthenticationEntryPoint unauthorizedHandler;
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
+    private final AppConfig appConfig;
+
+    @Autowired
+    private EnvPropertyService envPropertyService;
 
     @Bean
     public DaoAuthenticationProvider authenticationProvider() {
@@ -53,16 +62,24 @@ public class SecurityConfig {
 
     @Bean
     public PasswordEncoder passwordEncoder() {
-        return new BCryptPasswordEncoder();
+        return new BCryptPasswordEncoder(12); // Higher strength (default is 10)
     }
 
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
-        configuration.setAllowedOrigins(List.of("*"));
+
+        // Get allowed origins from environment
+        String allowedOriginsStr = envPropertyService.getProperty("ALLOWED_ORIGINS",
+                "http://localhost:3000,http://localhost:4173");
+
+        String[] origins = allowedOriginsStr.split(",");
+        configuration.setAllowedOrigins(Arrays.asList(origins));
         configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
-        configuration.setAllowedHeaders(List.of("*"));
-        configuration.setExposedHeaders(List.of("Authorization"));
+        configuration.setAllowedHeaders(Arrays.asList("*"));
+        configuration.setExposedHeaders(Arrays.asList("Authorization", "Content-Disposition"));
+        configuration.setAllowCredentials(true);
+        configuration.setMaxAge(3600L);
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", configuration);
@@ -78,6 +95,14 @@ public class SecurityConfig {
                         .authenticationEntryPoint(unauthorizedHandler))
                 .sessionManagement(session -> session
                         .sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                .headers(headers -> headers
+                        // Add security headers
+                        .xssProtection(xss -> xss.headerValue(XXssProtectionHeaderWriter.HeaderValue.ENABLED_MODE_BLOCK))
+                        .contentSecurityPolicy(csp -> csp.policyDirectives("default-src 'self'; script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data:; font-src 'self' https://fonts.gstatic.com; connect-src 'self';"))
+                        .frameOptions(frame -> frame.deny())
+                        .referrerPolicy(referrer -> referrer.policy(ReferrerPolicyHeaderWriter.ReferrerPolicy.SAME_ORIGIN))
+                        .permissionsPolicy(permissions -> permissions.policy("geolocation 'self'; camera 'none'; microphone 'none'; payment 'none';"))
+                )
                 .authorizeHttpRequests(authorize -> authorize
                         // Public static resources
                         .requestMatchers("/").permitAll()
@@ -100,8 +125,11 @@ public class SecurityConfig {
 
                         // Authentication endpoints
                         .requestMatchers("/api/v1/auth/**").permitAll()
+                        .requestMatchers("/api/v1/auth/mfa/verify").permitAll()
                         .requestMatchers("/api/v1/shares/links/**").permitAll()
                         .requestMatchers("/api/v1/health").permitAll()
+                        .requestMatchers("/api/v1/users/check-username").permitAll()
+                        .requestMatchers("/api/v1/users/check-email").permitAll()
 
                         // Swagger/OpenAPI
                         .requestMatchers("/v3/api-docs/**").permitAll()

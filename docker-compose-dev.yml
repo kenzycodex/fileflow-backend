@@ -11,6 +11,7 @@ services:
       - "${MYSQL_PORT:-3306}:3306"
     volumes:
       - mysql-data-dev:/var/lib/mysql
+      - ./db/init:/docker-entrypoint-initdb.d
     environment:
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-fileflow}
       MYSQL_DATABASE: ${MYSQL_DATABASE:-fileflow}

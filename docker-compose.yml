@@ -43,6 +43,7 @@ services:
       MYSQL_PASSWORD: ${MYSQL_PASSWORD}
     volumes:
       - mysql-data:/var/lib/mysql
+      - ./db/init:/docker-entrypoint-initdb.d
     networks:
       - fileflow-network
     restart: unless-stopped
@@ -96,7 +97,7 @@ services:
       - fileflow-network
     restart: unless-stopped
     healthcheck:
-      test: ["CMD-SHELL", "curl -s http://localhost:9200/_cluster/health | grep -q '\"status\":\"green\"||\"status\":\"yellow\"'"]
+      test: [ "CMD-SHELL", "curl -s http://localhost:9200/_cluster/health | grep -q '\"status\":\"green\"||\"status\":\"yellow\"'" ]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -117,7 +118,7 @@ services:
       - fileflow-network
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
+      test: [ "CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping" ]
       interval: 30s
       timeout: 10s
       retries: 3

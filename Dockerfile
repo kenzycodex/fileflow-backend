@@ -24,7 +24,10 @@ FROM amazoncorretto:17-alpine
 WORKDIR /app
 
 # Install required packages
-RUN apk add --no-cache curl bash
+RUN apk add --no-cache curl bash tzdata
+
+# Set timezone
+ENV TZ=UTC
 
 # Create non-root user
 RUN addgroup -S fileflow && adduser -S fileflow -G fileflow

@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Account Security Alert - FileFlow</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            margin: 0;
+            padding: 0;
+        }
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .header {
+            background-color: #4a6ee0;
+            color: white;
+            padding: 20px;
+            text-align: center;
+            border-radius: 4px 4px 0 0;
+        }
+        .content {
+            background-color: #f9f9f9;
+            padding: 20px;
+            border-radius: 0 0 4px 4px;
+            border: 1px solid #eee;
+            border-top: none;
+        }
+        .alert-icon {
+            text-align: center;
+            font-size: 48px;
+            margin: 10px 0;
+        }
+        .alert {
+            background-color: #fff8dc;
+            padding: 15px;
+            border-radius: 4px;
+            border-left: 4px solid #e74c3c;
+            margin: 20px 0;
+        }
+        .footer {
+            margin-top: 20px;
+            text-align: center;
+            font-size: 12px;
+            color: #666;
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <div class="header">
+        <h1>Account Security Alert</h1>
+    </div>
+    <div class="content">
+        <div class="alert-icon">🔒</div>
+
+        <p>Hello <strong>${username}</strong>,</p>
+
+        <p>We've temporarily locked your FileFlow account due to multiple failed login attempts. This is a security measure to protect your account from unauthorized access.</p>
+
+        <div class="alert">
+            <p><strong>Account Status:</strong> Temporarily Locked</p>
+            <p><strong>Duration:</strong> ${lockoutMinutes} minutes</p>
+            <p><strong>Reason:</strong> Multiple failed login attempts</p>
+        </div>
+
+        <p>Your account will be automatically unlocked after ${lockoutMinutes} minutes. Once unlocked, you will be able to log in normally.</p>
+
+        <p><strong>What should you do?</strong></p>
+        <ul>
+            <li>If you attempted to log in recently and forgot your password, you can <a href="${baseUrl}/forgot-password">reset your password</a> after your account is unlocked.</li>
+            <li>If you did not attempt to log in, someone else might be trying to access your account. You should reset your password once your account is unlocked.</li>
+            <li>For added security, consider enabling two-factor authentication in your account settings.</li>
+        </ul>
+
+        <p>If you continue to experience issues or believe your account has been compromised, please contact our support team.</p>
+
+        <p>The FileFlow Security Team</p>
+    </div>
+    <div class="footer">
+        <p>This is an automated message. Please do not reply to this email.</p>
+        <p>&copy; 2025 FileFlow. All rights reserved.</p>
+    </div>
+</div>
+</body>
+</html>

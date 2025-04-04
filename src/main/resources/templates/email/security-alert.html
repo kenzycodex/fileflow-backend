@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Security Alert: Unusual Login Detected - FileFlow</title>
+  <style>
+    body {
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        line-height: 1.6;
+        color: #333;
+        margin: 0;
+        padding: 0;
+    }
+    .container {
+        max-width: 600px;
+        margin: 0 auto;
+        padding: 20px;
+    }
+    .header {
+        background-color: #4a6ee0;
+        color: white;
+        padding: 20px;
+        text-align: center;
+        border-radius: 4px 4px 0 0;
+    }
+    .content {
+        background-color: #f9f9f9;
+        padding: 20px;
+        border-radius: 0 0 4px 4px;
+        border: 1px solid #eee;
+        border-top: none;
+    }
+    .alert-icon {
+        text-align: center;
+        font-size: 48px;
+        margin: 10px 0;
+    }
+    .alert {
+        background-color: #fff8dc;
+        padding: 15px;
+        border-radius: 4px;
+        border-left: 4px solid #e74c3c;
+        margin: 20px 0;
+    }
+    .button {
+        display: inline-block;
+        background-color: #e74c3c;
+        color: white;
+        text-decoration: none;
+        padding: 10px 20px;
+        border-radius: 4px;
+        margin-top: 20px;
+        text-align: center;
+    }
+    .details {
+        background-color: #f5f5f5;
+        padding: 15px;
+        border-radius: 4px;
+        margin: 20px 0;
+    }
+    .footer {
+        margin-top: 20px;
+        text-align: center;
+        font-size: 12px;
+        color: #666;
+    }
+  </style>
+</head>
+<body>
+<div class="container">
+  <div class="header">
+    <h1>Security Alert</h1>
+  </div>
+  <div class="content">
+    <div class="alert-icon">⚠️</div>
+
+    <p>Hello <strong>${username}</strong>,</p>
+
+    <p>We detected a login to your FileFlow account from a device or location that you don't usually use. If this was you, you can ignore this message. If not, please secure your account immediately.</p>
+
+    <div class="alert">
+      <p><strong>Unusual login detected:</strong></p>
+    </div>
+
+    <div class="details">
+      <p><strong>Time:</strong> ${time}</p>
+      <p><strong>Location:</strong> ${location}</p>
+      <p><strong>IP Address:</strong> ${ipAddress}</p>
+      <p><strong>Device:</strong> ${device}</p>
+    </div>
+
+    <p><strong>What should you do?</strong></p>
+    <p>If this was you, no action is needed. This location will be remembered for future logins.</p>
+
+    <p>If you don't recognize this login activity:</p>
+    <div style="text-align: center;">
+      <a href="${baseUrl}/change-password" class="button">Secure Your Account</a>
+    </div>
+
+    <p>To protect your account, we recommend:</p>
+    <ul>
+      <li>Change your password immediately</li>
+      <li>Enable two-factor authentication</li>
+      <li>Review your recent account activity</li>
+      <li>Sign out of all devices</li>
+    </ul>
+
+    <p>The FileFlow Security Team</p>
+  </div>
+  <div class="footer">
+    <p>This is an automated message. Please do not reply to this email.</p>
+    <p>&copy; 2025 FileFlow. All rights reserved.</p>
+  </div>
+</div>
+</body>
+</html>
