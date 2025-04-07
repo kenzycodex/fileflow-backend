@@ -1,6 +1,6 @@
 version: '3.8'
 
-# Development dependencies only (MySQL, MinIO, Elasticsearch, Redis)
+# Development dependencies only (MySQL, MinIO, Elasticsearch, Redis, MailHog)
 # The application itself runs on the host machine, not in a container
 
 services:
@@ -102,6 +102,23 @@ services:
       test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD:-fileflow}", "ping"]
       interval: 30s
       timeout: 10s
+      retries: 3
+
+  # MailHog for email testing in development
+  mailhog:
+    image: mailhog/mailhog:latest
+    container_name: fileflow-mailhog-dev
+    ports:
+      - "${MAIL_PORT:-1025}:1025"
+      - "${MAILHOG_UI_PORT:-8025}:8025"
+    networks:
+      - fileflow-network-dev
+    restart: unless-stopped
+    # No need for volumes as MailHog doesn't persist emails between restarts in dev
+    healthcheck:
+      test: ["CMD", "nc", "-z", "localhost", "1025"]
+      interval: 10s
+      timeout: 5s
       retries: 3
 
 networks:

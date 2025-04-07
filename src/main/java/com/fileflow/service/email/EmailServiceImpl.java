@@ -50,7 +50,11 @@ public class EmailServiceImpl implements EmailService {
 
         Map<String, Object> templateModel = new HashMap<>();
         templateModel.put("username", user.getFirstName());
-        templateModel.put("verificationLink", baseUrl + "/verify-email?token=" + verificationToken);
+        // Fix: Updated to use /auth/verify-email path instead of just /verify-email
+        templateModel.put("verificationLink", baseUrl + "/auth/verify-email?token=" + verificationToken);
+        // Adding baseUrl and verificationToken separately for template flexibility
+        templateModel.put("baseUrl", baseUrl);
+        templateModel.put("verificationToken", verificationToken);
 
         return sendHtmlEmail(user.getEmail(), subject, "welcome", templateModel);
     }
@@ -65,8 +69,11 @@ public class EmailServiceImpl implements EmailService {
 
         Map<String, Object> templateModel = new HashMap<>();
         templateModel.put("username", user.getFirstName());
-        templateModel.put("resetLink", baseUrl + "/reset-password?token=" + token);
-        templateModel.put("resetUrl", baseUrl + "/reset-password?token=" + token);
+        templateModel.put("resetLink", baseUrl + "/auth/reset-password?token=" + token);
+        templateModel.put("resetUrl", baseUrl + "/auth/reset-password?token=" + token);
+        // Adding baseUrl and token separately for template flexibility
+        templateModel.put("baseUrl", baseUrl);
+        templateModel.put("token", token);
 
         return sendHtmlEmail(user.getEmail(), subject, "password-reset", templateModel);
     }

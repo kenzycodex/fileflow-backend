@@ -17,6 +17,14 @@ services:
         condition: service_healthy
     environment:
       - SPRING_PROFILES_ACTIVE=${SPRING_PROFILES_ACTIVE:-prod}
+      # Mail configuration (use real SMTP in production)
+      - MAIL_HOST=${MAIL_HOST}
+      - MAIL_PORT=${MAIL_PORT}
+      - MAIL_USERNAME=${MAIL_USERNAME}
+      - MAIL_PASSWORD=${MAIL_PASSWORD}
+      - MAIL_SMTP_AUTH=${MAIL_SMTP_AUTH}
+      - MAIL_SMTP_STARTTLS=${MAIL_SMTP_STARTTLS}
+      - MAIL_FROM=${MAIL_FROM}
     volumes:
       - ./config:/app/config
       - ./.env:/app/.env
@@ -97,7 +105,7 @@ services:
       - fileflow-network
     restart: unless-stopped
     healthcheck:
-      test: [ "CMD-SHELL", "curl -s http://localhost:9200/_cluster/health | grep -q '\"status\":\"green\"||\"status\":\"yellow\"'" ]
+      test: [ "CMD-SHELL", "curl -s http://localhost:9200/_cluster/health | grep -e '\"status\":\"green\"' -e '\"status\":\"yellow\"'" ]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -122,6 +130,20 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
+
+  # Optional: Include MailHog for production troubleshooting
+  # Note: For actual production, use a real SMTP server
+  # Uncomment this section only if you need it for troubleshooting
+  # mailhog:
+  #   image: mailhog/mailhog:latest
+  #   container_name: fileflow-mailhog
+  #   ports:
+  #     - "1025:1025" # SMTP server
+  #     - "8025:8025" # Web UI
+  #   networks:
+  #     - fileflow-network
+  #   restart: unless-stopped
+  #   # Secured behind internal network, not exposed to public
 
 networks:
   fileflow-network:

@@ -1,7 +1,9 @@
 package com.fileflow.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fileflow.config.TestConfig;
 import com.fileflow.config.TestSecurityConfig;
+import com.fileflow.config.TestValidationConfig;
 import com.fileflow.dto.request.auth.PasswordResetRequest;
 import com.fileflow.dto.request.auth.RefreshTokenRequest;
 import com.fileflow.dto.request.auth.SignInRequest;
@@ -9,18 +11,25 @@ import com.fileflow.dto.request.auth.SignUpRequest;
 import com.fileflow.dto.response.auth.JwtResponse;
 import com.fileflow.dto.response.auth.UserResponse;
 import com.fileflow.dto.response.common.ApiResponse;
-import com.fileflow.security.JwtAuthenticationFilter;
 import com.fileflow.service.auth.AuthService;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
+import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
-import org.springframework.test.web.servlet.setup.MockMvcBuilders;
-import org.springframework.web.context.WebApplicationContext;
+
+import java.time.LocalDateTime;
+
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import java.time.LocalDateTime;
 
@@ -33,12 +42,11 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @WebMvcTest(AuthController.class)
-@Import(TestSecurityConfig.class)
+@Import({TestValidationConfig.class, TestSecurityConfig.class, TestConfig.class})
+@ActiveProfiles("test")
 public class AuthControllerTest {
 
     @Autowired
-    private WebApplicationContext context;
-
     private MockMvc mockMvc;
 
     @MockBean
@@ -46,13 +54,6 @@ public class AuthControllerTest {
 
     @Autowired
     private ObjectMapper objectMapper;
-
-    @BeforeEach
-    public void setup() {
-        mockMvc = MockMvcBuilders
-                .webAppContextSetup(context)
-                .build();
-    }
 
     @Test
     public void testSignIn() throws Exception {
@@ -102,6 +103,7 @@ public class AuthControllerTest {
                 .username("newuser")
                 .email("new@example.com")
                 .password("NewPass@123")
+                .confirmPassword("NewPass@123")
                 .firstName("New")
                 .lastName("User")
                 .build();
@@ -220,5 +222,24 @@ public class AuthControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.message").value("Token is valid"));
+    }
+
+    @Test
+    public void testLogout() throws Exception {
+        // Create mock data
+        ApiResponse apiResponse = ApiResponse.builder()
+                .success(true)
+                .message("Logged out successfully")
+                .timestamp(LocalDateTime.now())
+                .build();
+
+        when(authService.logout(eq("refresh-token"))).thenReturn(apiResponse);
+
+        // Perform the logout request
+        mockMvc.perform(post("/api/v1/auth/logout")
+                        .param("refreshToken", "refresh-token"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.message").value("Logged out successfully"));
     }
 }

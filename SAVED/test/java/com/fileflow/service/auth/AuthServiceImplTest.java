@@ -1,5 +1,8 @@
 package com.fileflow.service.auth;
 
+import com.fileflow.config.AppConfig;
+import com.fileflow.config.TestConfig;
+import com.fileflow.config.TestValidationConfig;
 import com.fileflow.dto.request.auth.PasswordResetRequest;
 import com.fileflow.dto.request.auth.RefreshTokenRequest;
 import com.fileflow.dto.request.auth.SignInRequest;
@@ -15,18 +18,26 @@ import com.fileflow.repository.UserRepository;
 import com.fileflow.repository.UserSettingsRepository;
 import com.fileflow.security.JwtTokenProvider;
 import com.fileflow.security.UserPrincipal;
+import com.fileflow.service.email.EmailService;
+import com.fileflow.service.security.RateLimiterService;
+import com.fileflow.util.SecurityUtils;
+import jakarta.servlet.http.HttpServletRequest;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.annotation.Import;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.util.ReflectionTestUtils;
 
+import java.lang.reflect.Field;
 import java.time.LocalDateTime;
 import java.util.Collections;
 import java.util.Optional;
@@ -36,6 +47,8 @@ import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
+@Import({TestConfig.class, TestValidationConfig.class})
+@ActiveProfiles("test")
 public class AuthServiceImplTest {
 
     @Mock
@@ -57,7 +70,31 @@ public class AuthServiceImplTest {
     private JwtService jwtService;
 
     @Mock
+    private EmailService emailService;
+
+    @Mock
     private Authentication authentication;
+
+    @Mock
+    private AppConfig appConfig;
+
+    @Mock
+    private AppConfig.SecurityConfig securityConfig;
+
+    @Mock
+    private AppConfig.PasswordStrength passwordStrength;
+
+    @Mock
+    private AppConfig.EmailConfig emailConfig;
+
+    @Mock
+    private RateLimiterService rateLimiterService;
+
+    @Mock
+    private SecurityUtils securityUtils;
+
+    @Mock
+    private HttpServletRequest request;
 
     @InjectMocks
     private AuthServiceImpl authService;
@@ -77,20 +114,47 @@ public class AuthServiceImplTest {
                 .password("encodedPassword")
                 .status(User.Status.ACTIVE)
                 .role(User.UserRole.USER)
-                .authProvider(User.AuthProvider.LOCAL) // Initialize with LOCAL auth provider
+                .authProvider(User.AuthProvider.LOCAL)
                 .storageQuota(10737418240L) // 10GB
                 .storageUsed(0L)
                 .createdAt(LocalDateTime.now())
                 .build();
 
-        // Setup user principal - using builder pattern to match implementation class
+        // Setup user principal
         userPrincipal = UserPrincipal.builder()
                 .id(1L)
                 .username("testuser")
                 .email("test@example.com")
                 .password("encodedPassword")
                 .authorities(Collections.singletonList(new SimpleGrantedAuthority("ROLE_USER")))
+                .isActive(true)
                 .build();
+
+        // Configure AppConfig for tests with lenient mode
+        lenient().when(appConfig.getSecurity()).thenReturn(securityConfig);
+        lenient().when(securityConfig.getPasswordStrength()).thenReturn(passwordStrength);
+        lenient().when(securityConfig.getAccessTokenExpiration()).thenReturn(3600000L);
+        lenient().when(securityConfig.getRefreshTokenExpiration()).thenReturn(604800000L);
+
+        lenient().when(passwordStrength.getMinLength()).thenReturn(8);
+        lenient().when(passwordStrength.isRequireDigits()).thenReturn(true);
+        lenient().when(passwordStrength.isRequireLowercase()).thenReturn(true);
+        lenient().when(passwordStrength.isRequireUppercase()).thenReturn(true);
+        lenient().when(passwordStrength.isRequireSpecial()).thenReturn(true);
+
+        lenient().when(appConfig.getEmail()).thenReturn(emailConfig);
+        lenient().when(emailConfig.getEmailVerificationExpiryHours()).thenReturn(24L);
+        lenient().when(emailConfig.getPasswordResetExpiryHours()).thenReturn(24L);
+
+        // Configure mock behavior for SecurityUtils
+        lenient().when(securityUtils.getClientIpAddress(any(HttpServletRequest.class))).thenReturn("127.0.0.1");
+        lenient().when(securityUtils.getUserAgent(any(HttpServletRequest.class))).thenReturn("Test User Agent");
+
+        // Configure RateLimiterService to avoid NullPointerExceptions
+        lenient().doNothing().when(rateLimiterService).checkLoginRateLimit(anyString());
+        lenient().doNothing().when(rateLimiterService).checkIpRateLimit(anyString());
+        lenient().doNothing().when(rateLimiterService).checkSignupRateLimit(anyString());
+        lenient().doNothing().when(rateLimiterService).checkPasswordResetRateLimit(anyString());
     }
 
     @Test
@@ -126,18 +190,19 @@ public class AuthServiceImplTest {
 
     @Test
     public void testSignUpSuccess() {
-        // Setup mocks
+        // Setup mocks with argument matchers
         SignUpRequest signUpRequest = SignUpRequest.builder()
                 .username("newuser")
                 .email("new@example.com")
                 .password("NewPass@123")
+                .confirmPassword("NewPass@123")
                 .firstName("New")
                 .lastName("User")
                 .build();
 
-        when(userRepository.existsByUsername("newuser")).thenReturn(false);
-        when(userRepository.existsByEmail("new@example.com")).thenReturn(false);
-        when(passwordEncoder.encode("NewPass@123")).thenReturn("encodedPassword");
+        when(userRepository.existsByUsername(anyString())).thenReturn(false);
+        when(userRepository.existsByEmail(anyString())).thenReturn(false);
+        when(passwordEncoder.encode(anyString())).thenReturn("encodedPassword");
         when(userRepository.save(any(User.class))).thenReturn(testUser);
 
         // Call service method
@@ -146,7 +211,7 @@ public class AuthServiceImplTest {
         // Verify results
         assertNotNull(response);
         assertTrue(response.isSuccess());
-        assertEquals("User registered successfully", response.getMessage());
+        assertTrue(response.getMessage().contains("User registered successfully"));
 
         // Verify user and settings were saved
         verify(userRepository).save(any(User.class));
@@ -155,14 +220,15 @@ public class AuthServiceImplTest {
 
     @Test
     public void testSignUpFailureUsernameExists() {
-        // Setup mocks
+        // Setup mocks with argument matchers
         SignUpRequest signUpRequest = SignUpRequest.builder()
                 .username("existinguser")
                 .email("new@example.com")
                 .password("NewPass@123")
+                .confirmPassword("NewPass@123")
                 .build();
 
-        when(userRepository.existsByUsername("existinguser")).thenReturn(true);
+        when(userRepository.existsByUsername(anyString())).thenReturn(true);
 
         // Call service method and verify exception
         BadRequestException exception = assertThrows(BadRequestException.class, () -> {
@@ -177,15 +243,16 @@ public class AuthServiceImplTest {
 
     @Test
     public void testSignUpFailureEmailExists() {
-        // Setup mocks
+        // Setup mocks with argument matchers
         SignUpRequest signUpRequest = SignUpRequest.builder()
                 .username("newuser")
                 .email("existing@example.com")
                 .password("NewPass@123")
+                .confirmPassword("NewPass@123")
                 .build();
 
-        when(userRepository.existsByUsername("newuser")).thenReturn(false);
-        when(userRepository.existsByEmail("existing@example.com")).thenReturn(true);
+        when(userRepository.existsByUsername(anyString())).thenReturn(false);
+        when(userRepository.existsByEmail(anyString())).thenReturn(true);
 
         // Call service method and verify exception
         BadRequestException exception = assertThrows(BadRequestException.class, () -> {
@@ -207,6 +274,7 @@ public class AuthServiceImplTest {
 
         when(tokenProvider.validateToken("valid-refresh-token")).thenReturn(true);
         when(tokenProvider.getUserIdFromJWT("valid-refresh-token")).thenReturn(1L);
+        when(tokenProvider.getTokenFamilyFromJWT("valid-refresh-token")).thenReturn("token-family");
         when(jwtService.validateRefreshToken(1L, "valid-refresh-token")).thenReturn(true);
         when(userRepository.findById(1L)).thenReturn(Optional.of(testUser));
         when(tokenProvider.generateToken(1L)).thenReturn("new-access-token");
@@ -221,8 +289,8 @@ public class AuthServiceImplTest {
         assertEquals("new-refresh-token", response.getRefreshToken());
         assertEquals("LOCAL", response.getUser().getAuthProvider()); // Verify auth provider
 
-        // Verify refresh token was saved
-        verify(jwtService).saveRefreshToken(eq(1L), eq("new-refresh-token"));
+        // Verify refresh token was rotated
+        verify(jwtService).rotateRefreshToken(eq(1L), eq("valid-refresh-token"), eq("new-refresh-token"), eq("token-family"));
     }
 
     @Test
@@ -264,6 +332,7 @@ public class AuthServiceImplTest {
 
         // Verify token was set and user was saved
         verify(userRepository).save(any(User.class));
+        verify(emailService).sendPasswordResetEmail(any(User.class), anyString());
     }
 
     @Test

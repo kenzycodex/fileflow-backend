@@ -36,17 +36,17 @@ public class FirebaseAuthServiceTest {
     @Mock
     private FirebaseToken firebaseToken;
 
+    private final String validToken = "valid-firebase-token";
+    private final String uid = "firebase-user-id";
+    private final String email = "test@example.com";
+    private final String name = "Test User";
+    private final String provider = "google.com";
     @Mock
     private FirebaseAuth firebaseAuth;
 
     @InjectMocks
     private FirebaseAuthService firebaseAuthService;
 
-    private final String validToken = "valid-firebase-token";
-    private final String uid = "firebase-user-id";
-    private final String email = "test@example.com";
-    private final String name = "Test User";
-    private final String provider = "google.com";
 
     @BeforeEach
     public void setup() {

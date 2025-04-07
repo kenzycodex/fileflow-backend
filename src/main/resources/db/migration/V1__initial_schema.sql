@@ -1,4 +1,6 @@
 -- V1__initial_schema.sql
+-- Updated schema aligned with model classes
+
 -- Create users table with enhanced security fields
 CREATE TABLE users (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,
@@ -10,15 +12,13 @@ CREATE TABLE users (
     profile_image_path VARCHAR(255),
     enabled BOOLEAN NOT NULL DEFAULT TRUE,
     email_verified BOOLEAN NOT NULL DEFAULT FALSE,
-    verification_token VARCHAR(100),
-    verification_token_expiry TIMESTAMP,
     email_verification_token VARCHAR(100),
     email_verification_token_expiry TIMESTAMP,
-    reset_password_token VARCHAR(255) NULL,
-    reset_password_token_expiry DATETIME NULL,
-    firebase_uid VARCHAR(255) NULL,
+    reset_password_token VARCHAR(255),
+    reset_password_token_expiry TIMESTAMP,
+    firebase_uid VARCHAR(255),
     auth_provider ENUM('LOCAL', 'GOOGLE', 'GITHUB', 'MICROSOFT', 'APPLE') NOT NULL DEFAULT 'LOCAL',
-    created_at TIMESTAMP,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP,
     last_login TIMESTAMP,
     last_login_ip VARCHAR(50),
@@ -26,11 +26,11 @@ CREATE TABLE users (
     last_username_change TIMESTAMP,
     password_updated_at TIMESTAMP,
     last_logout_time VARCHAR(100),
-    status VARCHAR(20) NOT NULL,
-    storage_quota BIGINT NOT NULL,
+    status ENUM('ACTIVE', 'INACTIVE', 'SUSPENDED', 'DELETED') NOT NULL DEFAULT 'ACTIVE',
+    storage_quota BIGINT NOT NULL DEFAULT 5368709120, -- 5GB default
     storage_used BIGINT NOT NULL DEFAULT 0,
     storage_limit BIGINT,
-    role VARCHAR(20) NOT NULL
+    role ENUM('USER', 'ADMIN') NOT NULL DEFAULT 'USER'
 );
 
 -- Create user_mfa table for multi-factor authentication
@@ -40,11 +40,11 @@ CREATE TABLE user_mfa (
     secret VARCHAR(100) NOT NULL,
     enabled BOOLEAN NOT NULL DEFAULT FALSE,
     backup_codes VARCHAR(1000),
-    created_at TIMESTAMP,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     verified_at TIMESTAMP,
     last_used_at TIMESTAMP,
     recovery_email VARCHAR(100),
-    method VARCHAR(20) DEFAULT 'TOTP',
+    method ENUM('TOTP', 'SMS', 'EMAIL', 'SECURITY_KEY') DEFAULT 'TOTP',
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
     UNIQUE KEY unique_user_mfa (user_id)
 );
@@ -68,11 +68,11 @@ CREATE TABLE user_roles (
 CREATE TABLE user_settings (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,
     user_id BIGINT NOT NULL,
-    theme_preference VARCHAR(20) NOT NULL,
+    theme_preference ENUM('LIGHT', 'DARK', 'SYSTEM') NOT NULL DEFAULT 'SYSTEM',
     notification_email BOOLEAN NOT NULL DEFAULT TRUE,
     notification_in_app BOOLEAN NOT NULL DEFAULT TRUE,
-    default_view VARCHAR(20) NOT NULL,
-    created_at TIMESTAMP,
+    default_view ENUM('GRID', 'LIST') NOT NULL DEFAULT 'GRID',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP,
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
@@ -87,7 +87,7 @@ CREATE TABLE folders (
     is_shared BOOLEAN NOT NULL DEFAULT FALSE,
     is_deleted BOOLEAN NOT NULL DEFAULT FALSE,
     deleted_at TIMESTAMP,
-    created_at TIMESTAMP,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP,
     last_accessed TIMESTAMP,
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
@@ -110,7 +110,7 @@ CREATE TABLE files (
     is_shared BOOLEAN NOT NULL DEFAULT FALSE,
     is_deleted BOOLEAN NOT NULL DEFAULT FALSE,
     deleted_at TIMESTAMP,
-    created_at TIMESTAMP,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP,
     last_accessed TIMESTAMP,
     checksum VARCHAR(64),
@@ -125,11 +125,11 @@ CREATE TABLE file_versions (
     storage_path VARCHAR(1000) NOT NULL,
     version_number INT NOT NULL,
     file_size BIGINT NOT NULL,
-    created_at TIMESTAMP,
-    created_by BIGINT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    created_by BIGINT NOT NULL,
     comment VARCHAR(255),
     FOREIGN KEY (file_id) REFERENCES files(id) ON DELETE CASCADE,
-    FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
+    FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE CASCADE
 );
 
 -- Create shares table
@@ -137,15 +137,15 @@ CREATE TABLE shares (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,
     owner_id BIGINT NOT NULL,
     item_id BIGINT NOT NULL,
-    item_type VARCHAR(20) NOT NULL,
+    item_type ENUM('FILE', 'FOLDER') NOT NULL,
     recipient_id BIGINT,
     recipient_email VARCHAR(100),
     share_link VARCHAR(255) NOT NULL,
-    permissions VARCHAR(20) NOT NULL,
+    permissions ENUM('VIEW', 'EDIT', 'COMMENT') NOT NULL,
     expiry_date TIMESTAMP,
     is_password_protected BOOLEAN NOT NULL DEFAULT FALSE,
     password_hash VARCHAR(100),
-    created_at TIMESTAMP,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     view_count INT NOT NULL DEFAULT 0,
     FOREIGN KEY (owner_id) REFERENCES users(id) ON DELETE CASCADE,
     FOREIGN KEY (recipient_id) REFERENCES users(id) ON DELETE SET NULL
@@ -162,10 +162,6 @@ CREATE TABLE activities (
     ip_address VARCHAR(50),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     device_info VARCHAR(255),
-    session_id VARCHAR(100),
-    browser VARCHAR(100),
-    operating_system VARCHAR(100),
-    status VARCHAR(20),
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
@@ -181,6 +177,7 @@ CREATE TABLE security_events (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     success BOOLEAN NOT NULL DEFAULT FALSE,
     details VARCHAR(1000),
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL,
     INDEX idx_security_events_user_id (user_id),
     INDEX idx_security_events_event_type (event_type),
     INDEX idx_security_events_created_at (created_at)
@@ -195,7 +192,7 @@ CREATE TABLE devices (
     platform VARCHAR(50) NOT NULL,
     last_sync_date TIMESTAMP,
     push_token VARCHAR(255),
-    created_at TIMESTAMP,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     last_active TIMESTAMP,
     ip_address VARCHAR(50),
     user_agent VARCHAR(255),
@@ -207,12 +204,12 @@ CREATE TABLE devices (
 CREATE TABLE sync_queue (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,
     user_id BIGINT NOT NULL,
-    device_id BIGINT,
+    device_id BIGINT NOT NULL,
     action_type VARCHAR(50) NOT NULL,
     item_id BIGINT,
     item_type VARCHAR(20) NOT NULL,
     status VARCHAR(20) NOT NULL,
-    created_at TIMESTAMP,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     processed_at TIMESTAMP,
     retry_count INT NOT NULL DEFAULT 0,
     data_payload TEXT,
@@ -233,7 +230,7 @@ CREATE TABLE storage_chunks (
     original_filename VARCHAR(255) NOT NULL,
     mime_type VARCHAR(255),
     parent_folder_id BIGINT,
-    created_at TIMESTAMP,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     expires_at TIMESTAMP,
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
     FOREIGN KEY (parent_folder_id) REFERENCES folders(id) ON DELETE SET NULL
@@ -247,7 +244,7 @@ CREATE TABLE file_access_logs (
     access_type VARCHAR(20) NOT NULL,
     ip_address VARCHAR(50),
     user_agent VARCHAR(255),
-    access_time TIMESTAMP,
+    access_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     device_info VARCHAR(255),
     FOREIGN KEY (file_id) REFERENCES files(id) ON DELETE CASCADE,
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
@@ -261,7 +258,7 @@ CREATE TABLE quota_extensions (
     reason VARCHAR(255),
     approved_by BIGINT,
     expiry_date TIMESTAMP NOT NULL,
-    created_at TIMESTAMP,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
     FOREIGN KEY (approved_by) REFERENCES users(id) ON DELETE SET NULL
 );
@@ -272,7 +269,7 @@ CREATE TABLE tags (
     user_id BIGINT NOT NULL,
     name VARCHAR(50) NOT NULL,
     color VARCHAR(20),
-    created_at TIMESTAMP,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
     UNIQUE KEY unique_user_tag (user_id, name)
 );
@@ -282,7 +279,7 @@ CREATE TABLE file_tags (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,
     file_id BIGINT NOT NULL,
     tag_id BIGINT NOT NULL,
-    created_at TIMESTAMP,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (file_id) REFERENCES files(id) ON DELETE CASCADE,
     FOREIGN KEY (tag_id) REFERENCES tags(id) ON DELETE CASCADE,
     UNIQUE KEY unique_file_tag (file_id, tag_id)
@@ -295,7 +292,7 @@ CREATE TABLE comments (
     user_id BIGINT NOT NULL,
     content VARCHAR(1000) NOT NULL,
     parent_comment_id BIGINT,
-    created_at TIMESTAMP,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP,
     is_edited BOOLEAN DEFAULT FALSE,
     is_deleted BOOLEAN DEFAULT FALSE,
@@ -312,7 +309,7 @@ CREATE TABLE notification_preferences (
     email_enabled BOOLEAN NOT NULL DEFAULT TRUE,
     push_enabled BOOLEAN NOT NULL DEFAULT TRUE,
     in_app_enabled BOOLEAN NOT NULL DEFAULT TRUE,
-    created_at TIMESTAMP,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP,
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
     UNIQUE KEY unique_user_notification_type (user_id, notification_type)
@@ -328,12 +325,14 @@ CREATE TABLE notifications (
     related_item_id BIGINT,
     related_item_type VARCHAR(20),
     is_read BOOLEAN NOT NULL DEFAULT FALSE,
-    created_at TIMESTAMP,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     expiry_date TIMESTAMP,
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
 -- Create indices for performance
+CREATE INDEX idx_user_email ON users(email);
+CREATE INDEX idx_user_username ON users(username);
 CREATE INDEX idx_firebase_uid ON users(firebase_uid);
 CREATE INDEX idx_reset_password_token ON users(reset_password_token);
 CREATE INDEX idx_email_verification_token ON users(email_verification_token);
@@ -356,3 +355,7 @@ CREATE INDEX idx_storage_chunks_upload_id ON storage_chunks(upload_id);
 CREATE INDEX idx_storage_chunks_user_id ON storage_chunks(user_id);
 CREATE INDEX idx_devices_user_id ON devices(user_id);
 CREATE INDEX idx_user_mfa_user_id ON user_mfa(user_id);
+
+-- Insert default roles
+INSERT INTO roles (name) VALUES ('ROLE_USER');
+INSERT INTO roles (name) VALUES ('ROLE_ADMIN');

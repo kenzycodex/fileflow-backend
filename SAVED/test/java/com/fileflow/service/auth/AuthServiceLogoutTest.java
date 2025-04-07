@@ -1,5 +1,6 @@
 package com.fileflow.service.auth;
 
+import com.fileflow.config.AppConfig;
 import com.fileflow.dto.response.common.ApiResponse;
 import com.fileflow.security.JwtTokenProvider;
 import org.junit.jupiter.api.BeforeEach;
@@ -11,11 +12,16 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.test.context.ActiveProfiles;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
+/**
+ * Tests for the logout functionality in AuthServiceImpl
+ */
 @ExtendWith(MockitoExtension.class)
+@ActiveProfiles("test")
 class AuthServiceLogoutTest {
 
     @Mock
@@ -30,6 +36,12 @@ class AuthServiceLogoutTest {
     @Mock
     private Authentication authentication;
 
+    @Mock
+    private AppConfig appConfig;
+
+    @Mock
+    private AppConfig.SecurityConfig securityConfig;
+
     @InjectMocks
     private AuthServiceImpl authService;
 
@@ -37,6 +49,16 @@ class AuthServiceLogoutTest {
     void setUp() {
         // Set up the security context for all tests
         SecurityContextHolder.setContext(securityContext);
+
+        // Configure AppConfig with lenient mode to avoid unnecessary stubbing exceptions
+        lenient().when(appConfig.getSecurity()).thenReturn(securityConfig);
+        lenient().when(securityConfig.getAccessTokenExpiration()).thenReturn(3600000L);
+        lenient().when(securityConfig.getRefreshTokenExpiration()).thenReturn(604800000L);
+
+        // Configure JwtService mock behavior with lenient mode
+        lenient().when(jwtService.getLatestAccessToken(anyLong())).thenReturn("access-token");
+        lenient().doNothing().when(jwtService).blacklistToken(anyString(), anyLong());
+        lenient().doNothing().when(jwtService).removeRefreshToken(anyLong());
     }
 
     @Test
@@ -55,8 +77,11 @@ class AuthServiceLogoutTest {
         // Verify
         assertTrue(response.isSuccess());
         assertEquals("Logged out successfully", response.getMessage());
+        assertNotNull(response.getTimestamp());
 
-        // Verify the refresh token was removed
+        // Verify the refresh token was removed and tokens were blacklisted
+        verify(jwtService).getLatestAccessToken(userId);
+        verify(jwtService, times(2)).blacklistToken(anyString(), anyLong());
         verify(jwtService).removeRefreshToken(userId);
     }
 
@@ -77,6 +102,7 @@ class AuthServiceLogoutTest {
 
         // Verify no refresh token was removed since the token was invalid
         verify(jwtService, never()).removeRefreshToken(any());
+        verify(jwtService, never()).blacklistToken(anyString(), anyLong());
     }
 
     @Test
@@ -90,6 +116,7 @@ class AuthServiceLogoutTest {
 
         // Verify no refresh token was removed
         verify(jwtService, never()).removeRefreshToken(any());
+        verify(jwtService, never()).blacklistToken(anyString(), anyLong());
     }
 
     @Test
@@ -103,6 +130,7 @@ class AuthServiceLogoutTest {
 
         // Verify no refresh token was removed
         verify(jwtService, never()).removeRefreshToken(any());
+        verify(jwtService, never()).blacklistToken(anyString(), anyLong());
     }
 
     @Test
@@ -122,5 +150,6 @@ class AuthServiceLogoutTest {
 
         // Verify no refresh token was removed due to the exception
         verify(jwtService, never()).removeRefreshToken(any());
+        verify(jwtService, never()).blacklistToken(anyString(), anyLong());
     }
 }

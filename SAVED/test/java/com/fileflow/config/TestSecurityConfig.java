@@ -24,6 +24,9 @@ import java.util.Collections;
 /**
  * Test security configuration that disables security for tests
  * and provides mock beans for security components.
+ *
+ * Note: This configuration avoids defining jwtAuthenticationFilter
+ * to prevent bean definition conflicts with TestConfig.
  */
 @TestConfiguration
 public class TestSecurityConfig {
@@ -60,11 +63,8 @@ public class TestSecurityConfig {
         return converter;
     }
 
-    @Bean
-    @Primary
-    public JwtAuthenticationFilter jwtAuthenticationFilter() {
-        return Mockito.mock(JwtAuthenticationFilter.class);
-    }
+    // Note: jwtAuthenticationFilter bean is deliberately removed from here
+    // to avoid conflicts with TestConfig
 
     @Bean
     @Primary

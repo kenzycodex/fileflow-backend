@@ -28,7 +28,6 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 import com.fileflow.service.config.EnvPropertyService;
 
 import java.util.Arrays;
-import java.util.List;
 
 @Configuration
 @EnableWebSecurity
@@ -108,7 +107,7 @@ public class SecurityConfig {
                         .requestMatchers("/").permitAll()
                         .requestMatchers("/index.html").permitAll()
                         .requestMatchers("/favicon.ico").permitAll()
-                        .requestMatchers("/assets/**").permitAll()  // Vite usually uses /assets/
+                        .requestMatchers("/assets/**").permitAll()
                         .requestMatchers("/static/**").permitAll()
                         .requestMatchers("/js/**").permitAll()
                         .requestMatchers("/css/**").permitAll()
@@ -125,6 +124,7 @@ public class SecurityConfig {
 
                         // Authentication endpoints
                         .requestMatchers("/api/v1/auth/**").permitAll()
+                        .requestMatchers("/api/v1/auth/verify/**").permitAll()
                         .requestMatchers("/api/v1/auth/mfa/verify").permitAll()
                         .requestMatchers("/api/v1/shares/links/**").permitAll()
                         .requestMatchers("/api/v1/health").permitAll()

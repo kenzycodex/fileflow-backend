@@ -7,6 +7,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.data.redis.core.SetOperations;
 import org.springframework.data.redis.core.ValueOperations;
 
 import java.util.concurrent.TimeUnit;
@@ -26,6 +27,9 @@ class JwtServiceTest {
     @Mock
     private ValueOperations<String, String> valueOperations;
 
+    @Mock
+    private SetOperations<String, String> setOperations;
+
     @InjectMocks
     private JwtService jwtService;
 
@@ -36,9 +40,18 @@ class JwtServiceTest {
     @BeforeEach
     void setUp() {
         MockitoAnnotations.openMocks(this);
+
+        // Properly set up all the mocks
         when(redisTemplate.opsForValue()).thenReturn(valueOperations);
+        when(redisTemplate.opsForSet()).thenReturn(setOperations);
+
+        // Configure JwtConfig
         when(jwtConfig.getExpiration()).thenReturn(3600000L);
         when(jwtConfig.getRefreshExpiration()).thenReturn(604800000L);
+
+        // Allow redis operations to succeed
+        doNothing().when(setOperations).add(anyString(), anyString());
+        doReturn(true).when(redisTemplate).expire(anyString(), anyLong(), any(TimeUnit.class));
     }
 
     @Test
@@ -48,7 +61,7 @@ class JwtServiceTest {
 
         // Then
         verify(valueOperations).set(eq("token:access:1"), eq(ACCESS_TOKEN), eq(3600000L), eq(TimeUnit.MILLISECONDS));
-        verify(redisTemplate).opsForSet().add(eq("user:tokens:1"), eq("token:access:1"));
+        verify(setOperations).add(eq("user:tokens:1"), eq("token:access:1"));
     }
 
     @Test
@@ -58,7 +71,7 @@ class JwtServiceTest {
 
         // Then
         verify(valueOperations).set(eq("token:refresh:1"), eq(REFRESH_TOKEN), eq(604800000L), eq(TimeUnit.MILLISECONDS));
-        verify(redisTemplate).opsForSet().add(eq("user:tokens:1"), eq("token:refresh:1"));
+        verify(setOperations).add(eq("user:tokens:1"), eq("token:refresh:1"));
     }
 
     @Test
@@ -158,6 +171,7 @@ class JwtServiceTest {
         // Given
         String username = "testuser";
         when(valueOperations.increment("login:failed:" + username)).thenReturn(1L);
+        doReturn(true).when(redisTemplate).expire(anyString(), anyLong(), any(TimeUnit.class));
 
         // When
         boolean shouldLock = jwtService.recordFailedLogin(username);
@@ -173,6 +187,7 @@ class JwtServiceTest {
         // Given
         String username = "testuser";
         when(valueOperations.increment("login:failed:" + username)).thenReturn(5L);
+        doReturn(true).when(redisTemplate).expire(anyString(), anyLong(), any(TimeUnit.class));
 
         // When
         boolean shouldLock = jwtService.recordFailedLogin(username);
