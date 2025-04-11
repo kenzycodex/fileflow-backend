@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Security Alert: Unusual Login Detected - FileFlow</title>
+  <title>FileFlow - Security Alert: Unusual Login</title>
   <style>
     body {
         font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
@@ -18,7 +18,7 @@
         padding: 20px;
     }
     .header {
-        background-color: #4a6ee0;
+        background-color: #e74c3c;
         color: white;
         padding: 20px;
         text-align: center;
@@ -31,33 +31,39 @@
         border: 1px solid #eee;
         border-top: none;
     }
-    .alert-icon {
-        text-align: center;
-        font-size: 48px;
-        margin: 10px 0;
-    }
-    .alert {
-        background-color: #fff8dc;
+    .login-details {
+        background-color: #f1f1f1;
         padding: 15px;
         border-radius: 4px;
-        border-left: 4px solid #e74c3c;
         margin: 20px 0;
     }
-    .button {
+    .login-details table {
+        width: 100%;
+        border-collapse: collapse;
+    }
+    .login-details table td {
+        padding: 8px;
+        border-bottom: 1px solid #ddd;
+    }
+    .login-details table td:first-child {
+        font-weight: bold;
+        width: 120px;
+    }
+    .action-button {
         display: inline-block;
-        background-color: #e74c3c;
+        background-color: #4a6ee0;
         color: white;
         text-decoration: none;
         padding: 10px 20px;
         border-radius: 4px;
-        margin-top: 20px;
-        text-align: center;
+        margin: 5px;
     }
-    .details {
-        background-color: #f5f5f5;
-        padding: 15px;
-        border-radius: 4px;
-        margin: 20px 0;
+    .warning-button {
+        background-color: #e74c3c;
+    }
+    .button-container {
+        text-align: center;
+        margin: 25px 0;
     }
     .footer {
         margin-top: 20px;
@@ -70,42 +76,55 @@
 <body>
 <div class="container">
   <div class="header">
-    <h1>Security Alert</h1>
+    <h1>Security Alert: Unusual Login Detected</h1>
   </div>
   <div class="content">
-    <div class="alert-icon">⚠️</div>
+    <p>Hello <strong th:text="${username}">User</strong>,</p>
 
-    <p>Hello <strong>${username}</strong>,</p>
+    <p>We detected a login to your FileFlow account from a location or device that appears different from your usual login patterns.</p>
 
-    <p>We detected a login to your FileFlow account from a device or location that you don't usually use. If this was you, you can ignore this message. If not, please secure your account immediately.</p>
-
-    <div class="alert">
-      <p><strong>Unusual login detected:</strong></p>
+    <div class="login-details">
+      <h3>Login Details:</h3>
+      <table>
+        <tr>
+          <td>Time:</td>
+          <td th:text="${time}">April 10, 2025 at 3:45 PM</td>
+        </tr>
+        <tr>
+          <td>IP Address:</td>
+          <td th:text="${ipAddress}">192.168.1.1</td>
+        </tr>
+        <tr>
+          <td>Location:</td>
+          <td th:text="${location}">New York, USA</td>
+        </tr>
+        <tr>
+          <td>Device:</td>
+          <td th:text="${device}">Windows PC, Chrome Browser</td>
+        </tr>
+      </table>
     </div>
 
-    <div class="details">
-      <p><strong>Time:</strong> ${time}</p>
-      <p><strong>Location:</strong> ${location}</p>
-      <p><strong>IP Address:</strong> ${ipAddress}</p>
-      <p><strong>Device:</strong> ${device}</p>
-    </div>
+    <p><strong>Was this you?</strong></p>
 
-    <p><strong>What should you do?</strong></p>
-    <p>If this was you, no action is needed. This location will be remembered for future logins.</p>
+    <p>If this was you, you can safely ignore this email. This alert is triggered when you login from a new location or device to help protect your account.</p>
 
-    <p>If you don't recognize this login activity:</p>
-    <div style="text-align: center;">
-      <a href="${baseUrl}/change-password" class="button">Secure Your Account</a>
-    </div>
-
-    <p>To protect your account, we recommend:</p>
+    <p><strong>If this wasn't you:</strong></p>
     <ul>
+      <li>Your account may have been compromised</li>
       <li>Change your password immediately</li>
-      <li>Enable two-factor authentication</li>
       <li>Review your recent account activity</li>
-      <li>Sign out of all devices</li>
+      <li>Contact our support team if you need assistance</li>
     </ul>
 
+    <div class="button-container">
+      <a th:href="${baseUrl} + '/profile/security'" class="action-button">Review Account Security</a>
+      <a th:href="${baseUrl} + '/profile/change-password'" class="action-button warning-button">Change Password</a>
+    </div>
+
+    <p>If you need further assistance, please contact our support team at <a th:href="'mailto:' + ${supportEmail}" th:text="${supportEmail}">support@fileflow.com</a>.</p>
+
+    <p>Thank you for using FileFlow!</p>
     <p>The FileFlow Security Team</p>
   </div>
   <div class="footer">

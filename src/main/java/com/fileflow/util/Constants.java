@@ -54,6 +54,20 @@ public final class Constants {
     public static final String ACTIVITY_DEVICE_DELETE = "DEVICE_DELETE";
     public static final String ACTIVITY_DEVICE_SYNC = "DEVICE_SYNC";
 
+    // Security-related Activity Types
+    public static final String ACTIVITY_PASSWORD_RESET = "PASSWORD_RESET";
+    public static final String ACTIVITY_PASSWORD_CHANGE = "PASSWORD_CHANGE";
+    public static final String ACTIVITY_ACCOUNT_LOCKED = "ACCOUNT_LOCKED";
+    public static final String ACTIVITY_ACCOUNT_UNLOCKED = "ACCOUNT_UNLOCKED";
+    public static final String ACTIVITY_EMAIL_VERIFICATION = "EMAIL_VERIFICATION";
+    public static final String ACTIVITY_TOKEN_VALIDATION = "TOKEN_VALIDATION";
+    public static final String ACTIVITY_SUSPICIOUS_LOGIN = "SUSPICIOUS_LOGIN";
+    public static final String ACTIVITY_NEW_DEVICE_LOGIN = "NEW_DEVICE_LOGIN";
+    public static final String ACTIVITY_NEW_LOCATION_LOGIN = "NEW_LOCATION_LOGIN";
+    public static final String ACTIVITY_MFA_ENABLED = "MFA_ENABLED";
+    public static final String ACTIVITY_MFA_DISABLED = "MFA_DISABLED";
+    public static final String ACTIVITY_MFA_CHALLENGE = "MFA_CHALLENGE";
+
     // Folder Item Types
     public static final String ITEM_TYPE_FILE = "FILE";
     public static final String ITEM_TYPE_FOLDER = "FOLDER";

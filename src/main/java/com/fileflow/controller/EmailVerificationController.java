@@ -12,6 +12,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -30,9 +31,32 @@ public class EmailVerificationController {
     private final SecurityUtils securityUtils;
 
     /**
-     * Verify email using token
+     * Verify email using token in path
+     * This ensures compatibility with email links
      */
-    @GetMapping("/verify")
+    @GetMapping(
+            value = "/verify-email",
+            produces = MediaType.APPLICATION_JSON_VALUE
+    )
+    @Operation(summary = "Verify email using token from query parameter")
+    public ResponseEntity<ApiResponse> verifyEmailGet(@RequestParam String token, HttpServletRequest request) {
+        // Apply rate limiting
+        String ipAddress = securityUtils.getClientIpAddress(request);
+        rateLimiterService.checkRateLimit(ipAddress);
+
+        log.info("Verifying email with token via GET (verify-email): {}", token);
+        ApiResponse response = authService.verifyEmail(token);
+        return ResponseEntity.ok(response);
+    }
+
+    /**
+     * Verify email using token
+     * Legacy endpoint maintained for backward compatibility
+     */
+    @GetMapping(
+            value = "/verify",
+            produces = MediaType.APPLICATION_JSON_VALUE
+    )
     @Operation(summary = "Verify email using token (GET method)")
     public ResponseEntity<ApiResponse> verifyEmail(@RequestParam String token, HttpServletRequest request) {
         // Apply rate limiting
@@ -47,7 +71,10 @@ public class EmailVerificationController {
     /**
      * Verify email using token (POST version)
      */
-    @PostMapping("/verify")
+    @PostMapping(
+            value = "/verify",
+            produces = MediaType.APPLICATION_JSON_VALUE
+    )
     @Operation(summary = "Verify email using token (POST version)")
     public ResponseEntity<ApiResponse> verifyEmailPost(@Valid @RequestBody(required = false) EmailVerificationRequest requestBody,
                                                        @RequestParam(required = false) String token,
@@ -80,9 +107,31 @@ public class EmailVerificationController {
     }
 
     /**
+     * Validates email verification token without performing verification
+     * Used by the front-end to check if token is valid before showing verification UI
+     */
+    @GetMapping(
+            value = "/validate-verification-token",
+            produces = MediaType.APPLICATION_JSON_VALUE
+    )
+    @Operation(summary = "Validate verification token without confirming")
+    public ResponseEntity<ApiResponse> validateVerificationToken(@RequestParam String token, HttpServletRequest request) {
+        // Apply rate limiting
+        String ipAddress = securityUtils.getClientIpAddress(request);
+        rateLimiterService.checkRateLimit(ipAddress);
+
+        log.info("Validating verification token: {}", token);
+        ApiResponse response = authService.validateVerificationToken(token);
+        return ResponseEntity.ok(response);
+    }
+
+    /**
      * Resend verification email
      */
-    @PostMapping("/verify/resend")
+    @PostMapping(
+            value = "/verify/resend",
+            produces = MediaType.APPLICATION_JSON_VALUE
+    )
     @Operation(summary = "Resend verification email")
     public ResponseEntity<ApiResponse> resendVerificationEmail(@Valid @RequestBody(required = false) ResendVerificationRequest requestBody,
                                                                @RequestParam(required = false) String email,

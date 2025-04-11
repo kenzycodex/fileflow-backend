@@ -40,6 +40,15 @@
             border-radius: 4px;
             margin-top: 20px;
         }
+        .link-box {
+            background-color: #f0f0f0;
+            padding: 10px;
+            border-radius: 4px;
+            word-break: break-all;
+            margin: 15px 0;
+            font-family: monospace;
+            font-size: 14px;
+        }
         .footer {
             margin-top: 20px;
             text-align: center;
@@ -65,9 +74,19 @@
         </ul>
         <p>Please verify your email address by clicking the button below:</p>
         <div style="text-align: center;">
-            <!-- Updated link to use the correct path format -->
-            <a th:href="${baseUrl + '/auth/verify-email?token=' + verificationToken}" class="button">Verify Email Address</a>
+            <!-- Updated link with the proper format for the frontend route -->
+            <a th:href="${verificationLink}" class="button">Verify Email Address</a>
         </div>
+
+        <p>If the button doesn't work, you can copy and paste this link into your browser:</p>
+
+        <!-- Added a visible link with better formatting -->
+        <div class="link-box">
+            <a th:href="${verificationLink}" th:text="${verificationLink}">
+                https://fileflow.com/auth/verify-email?token=xyz123
+            </a>
+        </div>
+
         <p>If you have any questions or need assistance, please don't hesitate to contact our support team.</p>
         <p>Happy file managing!</p>
         <p>The FileFlow Team</p>

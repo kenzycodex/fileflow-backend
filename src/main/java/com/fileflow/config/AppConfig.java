@@ -39,6 +39,11 @@ public class AppConfig {
         private long accessTokenExpiration = 3600000; // 1 hour
         private long refreshTokenExpiration = 604800000; // 7 days
 
+        private long rememberMeDurationDays = 14; // 14 days for "Remember Me"
+        private long standardDurationHours = 1; // 1 hour for standard session
+        private long tokenFamilyMaxAgeDays = 30; // Maximum age for token families
+        private int tokenRefreshThresholdSeconds = 300; // Refresh when token has less than 5 minutes left
+
         // Login attempt limits
         private int maxLoginAttempts = 5;
         private int lockoutDurationMinutes = 15;

@@ -6,18 +6,29 @@ import org.springframework.cache.concurrent.ConcurrentMapCacheManager;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
+import java.util.Arrays;
+import java.util.List;
+
 @Configuration
 @EnableCaching
 public class CacheConfig {
 
     @Bean
     public CacheManager cacheManager() {
-        return new ConcurrentMapCacheManager(
+        // Combine existing caches with new ones needed for rate limiting
+        List<String> cacheNames = Arrays.asList(
+                // Existing caches
                 "files",
                 "folders",
                 "users",
                 "shares",
-                "userQuota"
+                "userQuota",
+
+                // New caches for rate limiting and security
+                "rateLimitCache",
+                "rateLimitExpireCache"
         );
+
+        return new ConcurrentMapCacheManager(cacheNames.toArray(new String[0]));
     }
 }

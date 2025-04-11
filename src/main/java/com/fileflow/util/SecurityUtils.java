@@ -1,6 +1,7 @@
 package com.fileflow.util;
 
 import com.fileflow.model.User;
+import com.fileflow.security.JwtTokenProvider;
 import com.fileflow.service.email.EmailService;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
@@ -22,6 +23,7 @@ public class SecurityUtils {
 
     private final RedisTemplate<String, String> redisTemplate;
     private final EmailService emailService;
+    private final JwtTokenProvider tokenProvider;
 
     private static final String IP_HISTORY_PREFIX = "security:ip:history:";
     private static final String DEVICE_HISTORY_PREFIX = "security:device:history:";
@@ -51,6 +53,28 @@ public class SecurityUtils {
      */
     public String getUserAgent(HttpServletRequest request) {
         return request.getHeader("User-Agent");
+    }
+
+    /**
+     * Extract user ID from the JWT token in the request
+     *
+     * @param request HTTP request containing JWT token
+     * @return User ID from token or null if not present/valid
+     */
+    public Long getUserIdFromRequest(HttpServletRequest request) {
+        try {
+            String bearerToken = request.getHeader("Authorization");
+            if (StringUtils.hasText(bearerToken) && bearerToken.startsWith("Bearer ")) {
+                String token = bearerToken.substring(7);
+                if (tokenProvider.validateToken(token)) {
+                    return tokenProvider.getUserIdFromJWT(token);
+                }
+            }
+            return null;
+        } catch (Exception e) {
+            log.debug("Could not extract user ID from request: {}", e.getMessage());
+            return null;
+        }
     }
 
     /**

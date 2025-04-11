@@ -27,7 +27,7 @@ public class JwtTokenProvider {
     private final SecureRandom secureRandom = new SecureRandom();
 
     /**
-     * Generate a JWT token from authentication
+     * Generate a JWT token from authentication with default expiration
      */
     public String generateToken(Authentication authentication) {
         UserPrincipal userPrincipal = (UserPrincipal) authentication.getPrincipal();
@@ -35,11 +35,26 @@ public class JwtTokenProvider {
     }
 
     /**
-     * Generate a JWT token from user ID
+     * Generate a JWT token from authentication with custom expiration
+     */
+    public String generateTokenWithCustomExpiration(Authentication authentication, long expirationMs) {
+        UserPrincipal userPrincipal = (UserPrincipal) authentication.getPrincipal();
+        return generateToken(userPrincipal.getId(), expirationMs);
+    }
+
+    /**
+     * Generate a JWT token from user ID with default expiration
      */
     public String generateToken(Long userId) {
+        return generateToken(userId, jwtConfig.getExpiration());
+    }
+
+    /**
+     * Generate a JWT token from user ID with custom expiration
+     */
+    public String generateToken(Long userId, long expirationMs) {
         Date now = new Date();
-        Date expiryDate = new Date(now.getTime() + jwtConfig.getExpiration());
+        Date expiryDate = new Date(now.getTime() + expirationMs);
         String tokenId = generateTokenId();
 
         Map<String, Object> claims = new HashMap<>();
@@ -48,6 +63,11 @@ public class JwtTokenProvider {
         claims.put("iat", now.getTime() / 1000); // Issued at time
         claims.put("type", "access"); // Token type
 
+        // Add custom expiration flag if this is a long-lived token
+        if (expirationMs > (24 * 60 * 60 * 1000)) { // > 24 hours
+            claims.put("remember_me", true);
+        }
+
         String token = Jwts.builder()
                 .setClaims(claims)
                 .setIssuedAt(now)
@@ -55,18 +75,25 @@ public class JwtTokenProvider {
                 .signWith(getSigningKey(), SignatureAlgorithm.HS512)
                 .compact();
 
-        // Store the latest access token
-        jwtService.saveAccessToken(userId, token);
+        // Store the latest access token with custom expiration
+        jwtService.saveAccessToken(userId, token, expirationMs);
 
         return token;
     }
 
     /**
-     * Generate a refresh token with a family ID for tracking
+     * Generate a refresh token with a family ID for tracking with default expiration
      */
     public String generateRefreshToken(Long userId) {
+        return generateRefreshTokenWithCustomExpiration(userId, jwtConfig.getRefreshExpiration());
+    }
+
+    /**
+     * Generate a refresh token with a family ID for tracking with custom expiration
+     */
+    public String generateRefreshTokenWithCustomExpiration(Long userId, long expirationMs) {
         Date now = new Date();
-        Date expiryDate = new Date(now.getTime() + jwtConfig.getRefreshExpiration());
+        Date expiryDate = new Date(now.getTime() + expirationMs);
         String tokenId = generateTokenId();
 
         Map<String, Object> claims = new HashMap<>();
@@ -76,12 +103,20 @@ public class JwtTokenProvider {
         claims.put("type", "refresh"); // Token type
         claims.put("family", tokenId); // Family ID for tracking reuse
 
+        // Add custom expiration flag if this is a long-lived token
+        if (expirationMs > (24 * 60 * 60 * 1000)) { // > 24 hours
+            claims.put("remember_me", true);
+        }
+
         String token = Jwts.builder()
                 .setClaims(claims)
                 .setIssuedAt(now)
                 .setExpiration(expiryDate)
                 .signWith(getSigningKey(), SignatureAlgorithm.HS512)
                 .compact();
+
+        // Store refresh token with custom expiration
+        jwtService.saveRefreshToken(userId, token, expirationMs);
 
         return token;
     }
@@ -119,14 +154,31 @@ public class JwtTokenProvider {
     }
 
     /**
+     * Check if token has remember me flag
+     */
+    public boolean isRememberMeToken(String token) {
+        try {
+            Claims claims = parseClaims(token);
+            return Boolean.TRUE.equals(claims.get("remember_me"));
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    /**
      * Parse claims from token
      */
     public Claims parseClaims(String token) {
-        return Jwts.parserBuilder()
-                .setSigningKey(getSigningKey())
-                .build()
-                .parseClaimsJws(token)
-                .getBody();
+        try {
+            return Jwts.parserBuilder()
+                    .setSigningKey(getSigningKey())
+                    .build()
+                    .parseClaimsJws(token)
+                    .getBody();
+        } catch (ExpiredJwtException e) {
+            // For expired tokens, still return the claims for information extraction
+            return e.getClaims();
+        }
     }
 
     /**

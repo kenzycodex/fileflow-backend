@@ -37,6 +37,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -65,6 +66,9 @@ public class AuthServiceImpl implements AuthService {
     @Transactional
     public JwtResponse signIn(SignInRequest signInRequest) {
         String username = signInRequest.getUsernameOrEmail();
+        boolean rememberMe = signInRequest.isRememberMe();
+
+        log.info("Processing login for user: {} with rememberMe: {}", username, rememberMe);
 
         try {
             // Apply rate limiting
@@ -119,12 +123,23 @@ public class AuthServiceImpl implements AuthService {
                 }
             }
 
-            // Generate tokens
-            String accessToken = tokenProvider.generateToken(authentication);
-            String refreshToken = tokenProvider.generateRefreshToken(userPrincipal.getId());
+            // Calculate token expiration times based on "Remember Me" setting
+            long accessTokenExpiration = rememberMe ?
+                    appConfig.getSecurity().getAccessTokenExpiration() * 14 : // 14x longer for "Remember Me"
+                    appConfig.getSecurity().getAccessTokenExpiration();
 
-            // Save the tokens
-            jwtService.saveRefreshToken(userPrincipal.getId(), refreshToken);
+            long refreshTokenExpiration = rememberMe ?
+                    appConfig.getSecurity().getRefreshTokenExpiration() * 14 : // 14x longer for "Remember Me"
+                    appConfig.getSecurity().getRefreshTokenExpiration();
+
+            // Generate tokens with custom expirations
+            String accessToken = tokenProvider.generateTokenWithCustomExpiration(
+                    authentication, accessTokenExpiration);
+            String refreshToken = tokenProvider.generateRefreshTokenWithCustomExpiration(
+                    userPrincipal.getId(), refreshTokenExpiration);
+
+            // Save the tokens with adjusted expiration
+            jwtService.saveRefreshToken(userPrincipal.getId(), refreshToken, refreshTokenExpiration);
 
             // Check if MFA is required for this user
             boolean mfaRequired = false;
@@ -138,7 +153,7 @@ public class AuthServiceImpl implements AuthService {
                     .accessToken(accessToken)
                     .refreshToken(refreshToken)
                     .tokenType("Bearer")
-                    .expiresIn(appConfig.getSecurity().getAccessTokenExpiration() / 1000) // Convert to seconds
+                    .expiresIn(accessTokenExpiration / 1000) // Convert to seconds
                     .user(mapUserToUserResponse(user))
                     .mfaRequired(mfaRequired)
                     .build();
@@ -261,102 +276,279 @@ public class AuthServiceImpl implements AuthService {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("User", "id", userId));
 
-        // Generate new tokens
-        String newAccessToken = tokenProvider.generateToken(userId);
-        String newRefreshToken = tokenProvider.generateRefreshToken(userId);
+        // Check if user remembers this session
+        boolean isRememberMeSession = jwtService.isRememberMeToken(refreshToken);
+        long accessTokenExpiration = isRememberMeSession ?
+                appConfig.getSecurity().getAccessTokenExpiration() * 14 :
+                appConfig.getSecurity().getAccessTokenExpiration();
+
+        long refreshTokenExpiration = isRememberMeSession ?
+                appConfig.getSecurity().getRefreshTokenExpiration() * 14 :
+                appConfig.getSecurity().getRefreshTokenExpiration();
+
+        // Generate new tokens - create an Authentication object using UserPrincipal
+        UserPrincipal userPrincipal = UserPrincipal.create(user);
+        Authentication authentication = new UsernamePasswordAuthenticationToken(
+                userPrincipal, null, userPrincipal.getAuthorities());
+
+        String newAccessToken = tokenProvider.generateTokenWithCustomExpiration(
+                authentication, accessTokenExpiration);
+        String newRefreshToken = tokenProvider.generateRefreshTokenWithCustomExpiration(
+                userId, refreshTokenExpiration);
 
         // Rotate the refresh token (invalidate old one, save new one)
-        jwtService.rotateRefreshToken(userId, refreshToken, newRefreshToken, tokenFamily);
+        jwtService.rotateRefreshToken(userId, refreshToken, newRefreshToken, tokenFamily, refreshTokenExpiration);
 
         return JwtResponse.builder()
                 .accessToken(newAccessToken)
                 .refreshToken(newRefreshToken)
                 .tokenType("Bearer")
-                .expiresIn(appConfig.getSecurity().getAccessTokenExpiration() / 1000) // Convert to seconds
+                .expiresIn(accessTokenExpiration / 1000) // Convert to seconds
                 .user(mapUserToUserResponse(user))
                 .build();
     }
 
     @Override
     public ApiResponse forgotPassword(String email) {
-        // Apply rate limiting
-        rateLimiterService.checkPasswordResetRateLimit(email);
+        try {
+            // Find user by email - don't reveal if email doesn't exist for security
+            Optional<User> userOptional = userRepository.findByEmail(email);
 
-        User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new ResourceNotFoundException("User", "email", email));
+            if (userOptional.isEmpty()) {
+                log.info("Password reset requested for non-existent email: {}", email);
+                // Don't reveal that email doesn't exist
+                return ApiResponse.builder()
+                        .success(true)
+                        .message("If your email is registered, you will receive instructions to reset your password")
+                        .timestamp(LocalDateTime.now())
+                        .build();
+            }
 
-        // Only allow password reset for local accounts
-        if (user.getAuthProvider() != User.AuthProvider.LOCAL) {
-            throw new BadRequestException("Password reset is not available for social login accounts");
+            User user = userOptional.get();
+
+            // Only allow password reset for local accounts
+            if (user.getAuthProvider() != User.AuthProvider.LOCAL) {
+                log.warn("Password reset requested for social login account: {}", email);
+                return ApiResponse.builder()
+                        .success(false)
+                        .message("Password reset is not available for social login accounts")
+                        .timestamp(LocalDateTime.now())
+                        .build();
+            }
+
+            // Generate password reset token
+            String token = UUID.randomUUID().toString();
+            user.setResetPasswordToken(token);
+            user.setResetPasswordTokenExpiry(
+                    LocalDateTime.now().plusHours(appConfig.getEmail().getPasswordResetExpiryHours()));
+            userRepository.save(user);
+
+            // Send email with reset link
+            emailService.sendPasswordResetEmail(user, token);
+            log.info("Password reset token generated for user: {}", email);
+
+            return ApiResponse.builder()
+                    .success(true)
+                    .message("If your email is registered, you will receive instructions to reset your password")
+                    .timestamp(LocalDateTime.now())
+                    .build();
+        } catch (Exception e) {
+            log.error("Error in forgotPassword: {}", e.getMessage());
+            // Don't reveal error details for security
+            return ApiResponse.builder()
+                    .success(true) // Still return success for security
+                    .message("If your email is registered, you will receive instructions to reset your password")
+                    .timestamp(LocalDateTime.now())
+                    .build();
         }
-
-        // Generate password reset token
-        String token = UUID.randomUUID().toString();
-        user.setResetPasswordToken(token);
-        user.setResetPasswordTokenExpiry(
-                LocalDateTime.now().plusHours(appConfig.getEmail().getPasswordResetExpiryHours()));
-        userRepository.save(user);
-
-        // Send email with reset link
-        emailService.sendPasswordResetEmail(user, token);
-
-        return ApiResponse.builder()
-                .success(true)
-                .message("Password reset instructions sent to your email")
-                .timestamp(LocalDateTime.now())
-                .build();
     }
 
     @Override
     @Transactional
     public ApiResponse resetPassword(String token, PasswordResetRequest request) {
-        // Find user by reset password token
-        User user = userRepository.findByResetPasswordToken(token)
-                .orElseThrow(() -> new BadRequestException("Invalid or expired token"));
+        try {
+            // Find user by reset password token
+            User user = userRepository.findByResetPasswordToken(token)
+                    .orElseThrow(() -> new BadRequestException("Invalid or expired token"));
 
-        // Check if token is expired
-        if (user.getResetPasswordTokenExpiry().isBefore(LocalDateTime.now())) {
-            throw new BadRequestException("Token has expired");
+            // Check if token is expired
+            if (user.getResetPasswordTokenExpiry().isBefore(LocalDateTime.now())) {
+                throw new BadRequestException("Token has expired. Please request a new password reset.");
+            }
+
+            // Check if passwords match
+            if (!request.getNewPassword().equals(request.getConfirmPassword())) {
+                throw new BadRequestException("Passwords do not match");
+            }
+
+            // Check if new password is the same as the current one
+            if (passwordEncoder.matches(request.getNewPassword(), user.getPassword())) {
+                throw new BadRequestException("New password cannot be the same as your current password");
+            }
+
+            // Validate password strength
+            validatePasswordStrength(request.getNewPassword());
+
+            // Update password
+            user.setPassword(passwordEncoder.encode(request.getNewPassword()));
+
+            // Invalidate the token to prevent reuse
+            user.setResetPasswordToken(null);
+            user.setResetPasswordTokenExpiry(null);
+
+            user.setPasswordUpdatedAt(LocalDateTime.now());
+            userRepository.save(user);
+
+            // Revoke all existing tokens for security
+            jwtService.revokeAllUserTokens(user.getId());
+
+            log.info("Password reset successful for user: {}", user.getEmail());
+
+            // Send email notification about password change
+            try {
+                emailService.sendPasswordChangeNotification(user);
+            } catch (Exception e) {
+                // Just log the error, don't prevent password reset if email fails
+                log.warn("Failed to send password change notification email: {}", e.getMessage());
+            }
+
+            return ApiResponse.builder()
+                    .success(true)
+                    .message("Password has been reset successfully")
+                    .timestamp(LocalDateTime.now())
+                    .build();
+        } catch (BadRequestException e) {
+            log.warn("Password reset failed: {}", e.getMessage());
+            return ApiResponse.builder()
+                    .success(false)
+                    .message(e.getMessage())
+                    .timestamp(LocalDateTime.now())
+                    .build();
+        } catch (Exception e) {
+            log.error("Error during password reset: {}", e.getMessage());
+            return ApiResponse.builder()
+                    .success(false)
+                    .message("An unexpected error occurred during password reset")
+                    .timestamp(LocalDateTime.now())
+                    .build();
         }
-
-        // Check if passwords match
-        if (!request.getNewPassword().equals(request.getConfirmPassword())) {
-            throw new BadRequestException("Passwords do not match");
-        }
-
-        // Validate password strength
-        validatePasswordStrength(request.getNewPassword());
-
-        // Update password
-        user.setPassword(passwordEncoder.encode(request.getNewPassword()));
-        user.setResetPasswordToken(null);
-        user.setResetPasswordTokenExpiry(null);
-        user.setPasswordUpdatedAt(LocalDateTime.now());
-        userRepository.save(user);
-
-        // Revoke all existing tokens for security
-        jwtService.revokeAllUserTokens(user.getId());
-
-        return ApiResponse.builder()
-                .success(true)
-                .message("Password has been reset successfully")
-                .timestamp(LocalDateTime.now())
-                .build();
     }
 
     @Override
     public ApiResponse validateToken(String token) {
-        boolean isValid = tokenProvider.validateToken(token);
+        try {
+            boolean isValid = tokenProvider.validateToken(token);
 
-        if (!isValid) {
+            if (!isValid) {
+                log.warn("Invalid JWT token: {}", token.substring(0, Math.min(token.length(), 10)));
+                throw new UnauthorizedException("Invalid token");
+            }
+
+            return ApiResponse.builder()
+                    .success(true)
+                    .message("Token is valid")
+                    .timestamp(LocalDateTime.now())
+                    .build();
+        } catch (Exception e) {
+            log.error("Error validating JWT token: {}", e.getMessage());
             throw new UnauthorizedException("Invalid token");
         }
+    }
 
-        return ApiResponse.builder()
-                .success(true)
-                .message("Token is valid")
-                .timestamp(LocalDateTime.now())
-                .build();
+    @Override
+    public ApiResponse validateResetToken(String token) {
+        try {
+            // Find user by reset password token
+            User user = userRepository.findByResetPasswordToken(token)
+                    .orElseThrow(() -> new BadRequestException("Invalid or expired token"));
+
+            // Check if token is expired
+            if (user.getResetPasswordTokenExpiry().isBefore(LocalDateTime.now())) {
+                log.warn("Reset token expired for user: {}", user.getEmail());
+                throw new BadRequestException("Token has expired. Please request a new password reset.");
+            }
+
+            // Check if the token is within the acceptable time window
+            // If token is too old (but not yet expired), recommend getting a fresh one
+            LocalDateTime tokenCreationTime = user.getResetPasswordTokenExpiry().minusHours(
+                    appConfig.getEmail().getPasswordResetExpiryHours());
+
+            if (tokenCreationTime.isBefore(LocalDateTime.now().minusHours(12))) {
+                // Token is older than 12 hours but not expired - it will work but suggest refreshing
+                return ApiResponse.builder()
+                        .success(true)
+                        .message("Token is valid but was created some time ago. Consider requesting a new one for security.")
+                        .data(Map.of("email", user.getEmail(), "tokenAge", "old"))
+                        .timestamp(LocalDateTime.now())
+                        .build();
+            }
+
+            return ApiResponse.builder()
+                    .success(true)
+                    .message("Token is valid")
+                    .data(Map.of("email", user.getEmail()))
+                    .timestamp(LocalDateTime.now())
+                    .build();
+        } catch (BadRequestException e) {
+            log.error("Error validating reset token: {}", e.getMessage());
+            return ApiResponse.builder()
+                    .success(false)
+                    .message(e.getMessage())
+                    .timestamp(LocalDateTime.now())
+                    .build();
+        } catch (Exception e) {
+            log.error("Unexpected error validating reset token: {}", e.getMessage());
+            return ApiResponse.builder()
+                    .success(false)
+                    .message("Error validating reset token")
+                    .timestamp(LocalDateTime.now())
+                    .build();
+        }
+    }
+
+    @Override
+    public ApiResponse validateVerificationToken(String token) {
+        try {
+            log.info("Validating email verification token: {}", token);
+            Optional<User> userOpt = userRepository.findByEmailVerificationToken(token);
+
+            if (userOpt.isEmpty()) {
+                log.warn("No user found with verification token: {}", token);
+                return ApiResponse.builder()
+                        .success(false)
+                        .message("Invalid verification token")
+                        .timestamp(LocalDateTime.now())
+                        .build();
+            }
+
+            User user = userOpt.get();
+
+            // Check if token is expired
+            if (user.getEmailVerificationTokenExpiry() == null ||
+                    user.getEmailVerificationTokenExpiry().isBefore(LocalDateTime.now())) {
+                log.warn("Verification token expired for user: {}", user.getEmail());
+                return ApiResponse.builder()
+                        .success(false)
+                        .message("Verification token has expired. Please request a new one.")
+                        .timestamp(LocalDateTime.now())
+                        .build();
+            }
+
+            // Token is valid
+            return ApiResponse.builder()
+                    .success(true)
+                    .message("Verification token is valid")
+                    .timestamp(LocalDateTime.now())
+                    .build();
+
+        } catch (Exception e) {
+            log.error("Error validating verification token: {}", e.getMessage());
+            return ApiResponse.builder()
+                    .success(false)
+                    .message("Error validating verification token")
+                    .timestamp(LocalDateTime.now())
+                    .build();
+        }
     }
 
     @Override
@@ -494,57 +686,106 @@ public class AuthServiceImpl implements AuthService {
     @Override
     @Transactional
     public ApiResponse verifyEmail(String token) {
-        User user = userRepository.findByEmailVerificationToken(token)
-                .orElseThrow(() -> new BadRequestException("Invalid or expired verification token"));
+        try {
+            log.info("Processing email verification with token: {}", token);
 
-        // Check if token is expired
-        if (user.getEmailVerificationTokenExpiry().isBefore(LocalDateTime.now())) {
-            throw new BadRequestException("Verification token has expired. Please request a new one.");
+            User user = userRepository.findByEmailVerificationToken(token)
+                    .orElseThrow(() -> new BadRequestException("Invalid or expired verification token"));
+
+            // Check if token is expired
+            if (user.getEmailVerificationTokenExpiry() == null ||
+                    user.getEmailVerificationTokenExpiry().isBefore(LocalDateTime.now())) {
+                throw new BadRequestException("Verification token has expired. Please request a new one.");
+            }
+
+            // Mark email as verified
+            user.setEmailVerified(true);
+            user.setEmailVerificationToken(null);
+            user.setEmailVerificationTokenExpiry(null);
+            userRepository.save(user);
+
+            log.info("Email verified successfully for user: {}", user.getEmail());
+
+            return ApiResponse.builder()
+                    .success(true)
+                    .message("Email verified successfully")
+                    .timestamp(LocalDateTime.now())
+                    .build();
+
+        } catch (BadRequestException e) {
+            log.warn("Email verification failed: {}", e.getMessage());
+            return ApiResponse.builder()
+                    .success(false)
+                    .message(e.getMessage())
+                    .timestamp(LocalDateTime.now())
+                    .build();
+        } catch (Exception e) {
+            log.error("Error during email verification: {}", e.getMessage(), e);
+            return ApiResponse.builder()
+                    .success(false)
+                    .message("An unexpected error occurred during verification. Please try again.")
+                    .timestamp(LocalDateTime.now())
+                    .build();
         }
-
-        // Mark email as verified
-        user.setEmailVerified(true);
-        user.setEmailVerificationToken(null);
-        user.setEmailVerificationTokenExpiry(null);
-        userRepository.save(user);
-
-        return ApiResponse.builder()
-                .success(true)
-                .message("Email verified successfully")
-                .timestamp(LocalDateTime.now())
-                .build();
     }
 
     @Override
+    @Transactional
     public ApiResponse resendVerificationEmail(String email) {
-        User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new ResourceNotFoundException("User", "email", email));
+        try {
+            log.info("Resending verification email to: {}", email);
+            User user = userRepository.findByEmail(email)
+                    .orElseThrow(() -> new ResourceNotFoundException("User", "email", email));
 
-        // Check if email is already verified
-        if (user.isEmailVerified()) {
-            throw new BadRequestException("Email is already verified");
+            // Check if email is already verified
+            if (user.isEmailVerified()) {
+                log.info("Email already verified for user: {}", email);
+                return ApiResponse.builder()
+                        .success(false)
+                        .message("Email is already verified")
+                        .timestamp(LocalDateTime.now())
+                        .build();
+            }
+
+            // Generate new verification token
+            String verificationToken = UUID.randomUUID().toString();
+            user.setEmailVerificationToken(verificationToken);
+            user.setEmailVerificationTokenExpiry(
+                    LocalDateTime.now().plusHours(appConfig.getEmail().getEmailVerificationExpiryHours()));
+            userRepository.save(user);
+
+            // Send verification email
+            emailService.sendWelcomeEmail(user, verificationToken);
+            log.info("Verification email resent to: {}", email);
+
+            return ApiResponse.builder()
+                    .success(true)
+                    .message("Verification email sent successfully")
+                    .timestamp(LocalDateTime.now())
+                    .build();
+
+        } catch (ResourceNotFoundException e) {
+            // For security reasons, don't reveal that the email doesn't exist
+            log.warn("Resend verification requested for non-existent email: {}", email);
+            return ApiResponse.builder()
+                    .success(true) // Return success for security
+                    .message("If your email is registered, you will receive a verification email")
+                    .timestamp(LocalDateTime.now())
+                    .build();
+        } catch (Exception e) {
+            log.error("Error resending verification email: {}", e.getMessage(), e);
+            return ApiResponse.builder()
+                    .success(false)
+                    .message("Failed to resend verification email. Please try again.")
+                    .timestamp(LocalDateTime.now())
+                    .build();
         }
-
-        // Generate new verification token
-        String verificationToken = UUID.randomUUID().toString();
-        user.setEmailVerificationToken(verificationToken);
-        user.setEmailVerificationTokenExpiry(
-                LocalDateTime.now().plusHours(appConfig.getEmail().getEmailVerificationExpiryHours()));
-        userRepository.save(user);
-
-        // Send verification email
-        emailService.sendWelcomeEmail(user, verificationToken);
-
-        return ApiResponse.builder()
-                .success(true)
-                .message("Verification email sent successfully")
-                .timestamp(LocalDateTime.now())
-                .build();
     }
 
     private void createRootFolder(User user) {
         // This will be implemented in the FolderService
         // For now, we'll skip it as it depends on FolderService implementation
+        log.info("Root folder creation for user {} will be handled by FolderService", user.getId());
     }
 
     private UserResponse mapUserToUserResponse(User user) {

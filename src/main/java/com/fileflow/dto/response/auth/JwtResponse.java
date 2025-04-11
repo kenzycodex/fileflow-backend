@@ -22,4 +22,5 @@ public class JwtResponse {
     private UserResponse user;
     private Boolean mfaRequired;
     private String mfaToken;
+    private boolean rememberMe;
 }

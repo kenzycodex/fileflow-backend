@@ -1,5 +1,6 @@
 package com.fileflow.controller;
 
+import com.fileflow.config.AppConfig;
 import com.fileflow.dto.request.auth.MfaEnableRequest;
 import com.fileflow.dto.request.auth.MfaVerifyRequest;
 import com.fileflow.dto.response.auth.MfaResponse;
@@ -11,6 +12,7 @@ import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
@@ -24,10 +26,31 @@ import java.time.LocalDateTime;
 public class MfaController {
 
     private final MfaService mfaService;
+    private final AppConfig appConfig;
 
     @GetMapping("/status")
     @Operation(summary = "Check MFA status for current user", security = @SecurityRequirement(name = "bearerAuth"))
     public ResponseEntity<ApiResponse> getMfaStatus(@AuthenticationPrincipal UserPrincipal currentUser) {
+        // Check if MFA is globally enabled in the application
+        if (!appConfig.getMfa().isEnabled()) {
+            return ResponseEntity.ok(ApiResponse.builder()
+                    .success(true)
+                    .message("MFA is not enabled in this application")
+                    .data(false)
+                    .timestamp(LocalDateTime.now())
+                    .build());
+        }
+
+        // If current user is null, return unauthorized
+        if (currentUser == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(ApiResponse.builder()
+                            .success(false)
+                            .message("User not authenticated")
+                            .timestamp(LocalDateTime.now())
+                            .build());
+        }
+
         boolean mfaEnabled = mfaService.isMfaEnabled(currentUser.getId());
 
         return ResponseEntity.ok(ApiResponse.builder()
