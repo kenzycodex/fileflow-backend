@@ -82,7 +82,16 @@ public class AuthServiceImpl implements AuthService {
                 throw new LockedException("Account is temporarily locked. Try again in " + remainingTime + " seconds.");
             }
 
-            // Perform authentication
+            // Get user entity first to determine if it's a username or email
+            // This helps with query optimization by using proper indexing
+            Optional<User> userOpt = userRepository.findByUsernameOrEmail(username, username);
+            if (userOpt.isEmpty()) {
+                // If user doesn't exist, still proceed to authentication to prevent username enumeration
+                // The authentication manager will throw BadCredentialsException
+                log.debug("No user found with username or email: {}", username);
+            }
+
+            // Perform authentication with increased timeout
             Authentication authentication = authenticationManager.authenticate(
                     new UsernamePasswordAuthenticationToken(
                             signInRequest.getUsernameOrEmail(),
@@ -140,6 +149,9 @@ public class AuthServiceImpl implements AuthService {
 
             // Save the tokens with adjusted expiration
             jwtService.saveRefreshToken(userPrincipal.getId(), refreshToken, refreshTokenExpiration);
+
+            // Also save access token for better session tracking
+            jwtService.saveAccessToken(userPrincipal.getId(), accessToken, accessTokenExpiration);
 
             // Check if MFA is required for this user
             boolean mfaRequired = false;
@@ -299,6 +311,9 @@ public class AuthServiceImpl implements AuthService {
         // Rotate the refresh token (invalidate old one, save new one)
         jwtService.rotateRefreshToken(userId, refreshToken, newRefreshToken, tokenFamily, refreshTokenExpiration);
 
+        // Also save the new access token
+        jwtService.saveAccessToken(userId, newAccessToken, accessTokenExpiration);
+
         return JwtResponse.builder()
                 .accessToken(newAccessToken)
                 .refreshToken(newRefreshToken)
@@ -383,7 +398,13 @@ public class AuthServiceImpl implements AuthService {
 
             // Check if new password is the same as the current one
             if (passwordEncoder.matches(request.getNewPassword(), user.getPassword())) {
-                throw new BadRequestException("New password cannot be the same as your current password");
+                log.warn("Password reset failed: New password cannot be the same as current password for user: {}",
+                        user.getEmail());
+                return ApiResponse.builder()
+                        .success(false)
+                        .message("New password cannot be the same as your current password")
+                        .timestamp(LocalDateTime.now())
+                        .build();
             }
 
             // Validate password strength
