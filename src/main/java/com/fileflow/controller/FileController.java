@@ -1,16 +1,23 @@
 package com.fileflow.controller;
 
+import com.fileflow.annotation.RateLimit;
 import com.fileflow.dto.request.file.FileUpdateRequest;
 import com.fileflow.dto.request.file.FileUploadRequest;
 import com.fileflow.dto.response.common.ApiResponse;
+import com.fileflow.dto.response.common.PageResponse;
 import com.fileflow.dto.response.file.FileResponse;
 import com.fileflow.dto.response.file.FileUploadResponse;
 import com.fileflow.service.file.FileService;
+import com.fileflow.util.Constants;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.core.io.Resource;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -18,7 +25,6 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
-import jakarta.validation.Valid;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
@@ -29,12 +35,14 @@ import java.util.UUID;
 @RequiredArgsConstructor
 @Tag(name = "File Management", description = "File management API")
 @SecurityRequirement(name = "bearerAuth")
+@RateLimit(type = RateLimit.LimitType.API, keyResolver = RateLimit.KeyResolver.USER)
 public class FileController {
 
     private final FileService fileService;
 
     @PostMapping("/upload")
     @Operation(summary = "Upload a file")
+    @RateLimit(type = RateLimit.LimitType.API)
     public ResponseEntity<FileUploadResponse> uploadFile(
             @RequestParam("file") MultipartFile file,
             @RequestParam(value = "folderId", required = false) Long folderId,
@@ -53,6 +61,7 @@ public class FileController {
 
     @PostMapping("/upload/chunk")
     @Operation(summary = "Upload a file chunk (resumable upload)")
+    @RateLimit(type = RateLimit.LimitType.API)
     public ResponseEntity<ApiResponse> uploadChunk(
             @RequestParam("chunk") MultipartFile chunk,
             @RequestParam("uploadId") String uploadId,
@@ -194,33 +203,136 @@ public class FileController {
 
     @GetMapping("/folder/{folderId}")
     @Operation(summary = "Get files in folder")
-    public ResponseEntity<List<FileResponse>> getFilesInFolder(@PathVariable Long folderId) {
+    public ResponseEntity<PageResponse<FileResponse>> getFilesInFolder(
+            @PathVariable Long folderId,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size,
+            @RequestParam(defaultValue = "filename") String sortBy,
+            @RequestParam(defaultValue = "asc") String sortDir) {
+
+        // Validate and limit page size
+        int validatedSize = Math.min(size, Constants.MAX_PAGE_SIZE);
+
+        // Create pageable with sort direction
+        Sort.Direction direction = "desc".equalsIgnoreCase(sortDir) ? Sort.Direction.DESC : Sort.Direction.ASC;
+        Pageable pageable = PageRequest.of(page, validatedSize, direction, sortBy);
+
+        return ResponseEntity.ok(fileService.getFilesInFolder(folderId, pageable));
+    }
+
+    @GetMapping("/folder/{folderId}/all")
+    @Operation(summary = "Get all files in folder (no pagination)")
+    @Deprecated
+    public ResponseEntity<List<FileResponse>> getAllFilesInFolder(@PathVariable Long folderId) {
         return ResponseEntity.ok(fileService.getFilesInFolder(folderId));
     }
 
     @GetMapping("/root")
     @Operation(summary = "Get files in root folder")
-    public ResponseEntity<List<FileResponse>> getFilesInRoot() {
+    public ResponseEntity<PageResponse<FileResponse>> getFilesInRoot(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size,
+            @RequestParam(defaultValue = "filename") String sortBy,
+            @RequestParam(defaultValue = "asc") String sortDir) {
+
+        // Validate and limit page size
+        int validatedSize = Math.min(size, Constants.MAX_PAGE_SIZE);
+
+        // Create pageable with sort direction
+        Sort.Direction direction = "desc".equalsIgnoreCase(sortDir) ? Sort.Direction.DESC : Sort.Direction.ASC;
+        Pageable pageable = PageRequest.of(page, validatedSize, direction, sortBy);
+
+        return ResponseEntity.ok(fileService.getFilesInFolder(null, pageable));
+    }
+
+    @GetMapping("/root/all")
+    @Operation(summary = "Get all files in root folder (no pagination)")
+    @Deprecated
+    public ResponseEntity<List<FileResponse>> getAllFilesInRoot() {
         return ResponseEntity.ok(fileService.getFilesInFolder(null));
     }
 
     @GetMapping("/recent")
     @Operation(summary = "Get recent files")
-    public ResponseEntity<List<FileResponse>> getRecentFiles(
+    public ResponseEntity<PageResponse<FileResponse>> getRecentFiles(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size) {
+
+        // Validate and limit page size
+        int validatedSize = Math.min(size, Constants.MAX_PAGE_SIZE);
+
+        // Create pageable with default sort by last accessed time
+        Pageable pageable = PageRequest.of(page, validatedSize, Sort.Direction.DESC, "lastAccessed");
+
+        return ResponseEntity.ok(fileService.getRecentFiles(pageable));
+    }
+
+    @GetMapping("/recent/limit")
+    @Operation(summary = "Get recent files with limit (no pagination)")
+    @Deprecated
+    public ResponseEntity<List<FileResponse>> getRecentFilesWithLimit(
             @RequestParam(defaultValue = "10") int limit) {
 
-        return ResponseEntity.ok(fileService.getRecentFiles(limit));
+        // Validate and limit size
+        int validatedLimit = Math.min(limit, Constants.MAX_PAGE_SIZE);
+
+        return ResponseEntity.ok(fileService.getRecentFiles(validatedLimit));
     }
 
     @GetMapping("/favorites")
     @Operation(summary = "Get favorite files")
-    public ResponseEntity<List<FileResponse>> getFavoriteFiles() {
+    public ResponseEntity<PageResponse<FileResponse>> getFavoriteFiles(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size,
+            @RequestParam(defaultValue = "lastAccessed") String sortBy,
+            @RequestParam(defaultValue = "desc") String sortDir) {
+
+        // Validate and limit page size
+        int validatedSize = Math.min(size, Constants.MAX_PAGE_SIZE);
+
+        // Create pageable with sort direction
+        Sort.Direction direction = "desc".equalsIgnoreCase(sortDir) ? Sort.Direction.DESC : Sort.Direction.ASC;
+        Pageable pageable = PageRequest.of(page, validatedSize, direction, sortBy);
+
+        return ResponseEntity.ok(fileService.getFavoriteFiles(pageable));
+    }
+
+    @GetMapping("/favorites/all")
+    @Operation(summary = "Get all favorite files (no pagination)")
+    @Deprecated
+    public ResponseEntity<List<FileResponse>> getAllFavoriteFiles() {
         return ResponseEntity.ok(fileService.getFavoriteFiles());
     }
 
     @GetMapping("/search")
     @Operation(summary = "Search files by name")
-    public ResponseEntity<List<FileResponse>> searchFiles(
+    public ResponseEntity<PageResponse<FileResponse>> searchFiles(
+            @RequestParam String keyword,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size,
+            @RequestParam(defaultValue = "relevance") String sortBy,
+            @RequestParam(defaultValue = "desc") String sortDir) {
+
+        // Validate and limit page size
+        int validatedSize = Math.min(size, Constants.MAX_PAGE_SIZE);
+
+        // Create pageable with sort direction
+        Sort.Direction direction = "desc".equalsIgnoreCase(sortDir) ? Sort.Direction.DESC : Sort.Direction.ASC;
+
+        // If sorting by relevance, use lastAccessed as a proxy (or could implement a custom sort)
+        if ("relevance".equals(sortBy)) {
+            sortBy = "lastAccessed";
+        }
+
+        Pageable pageable = PageRequest.of(page, validatedSize, direction, sortBy);
+
+        return ResponseEntity.ok(fileService.searchFiles(keyword, pageable));
+    }
+
+    @GetMapping("/search/all")
+    @Operation(summary = "Search all files (no pagination)")
+    @Deprecated
+    public ResponseEntity<List<FileResponse>> searchAllFiles(
             @RequestParam String keyword) {
 
         return ResponseEntity.ok(fileService.searchFiles(keyword));

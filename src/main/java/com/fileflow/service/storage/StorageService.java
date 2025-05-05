@@ -59,6 +59,15 @@ public interface StorageService {
     Resource loadAsResource(String filename);
 
     /**
+     * Get input stream for a file
+     *
+     * @param filename The name of the file
+     * @return InputStream for the file
+     * @throws IOException If an error occurs
+     */
+    InputStream getInputStream(String filename) throws IOException;
+
+    /**
      * Generate a pre-signed URL for accessing a file
      *
      * @param filename The name of the file

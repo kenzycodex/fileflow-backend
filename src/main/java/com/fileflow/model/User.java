@@ -1,12 +1,11 @@
 package com.fileflow.model;
 
 import jakarta.persistence.*;
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Data;
-import lombok.NoArgsConstructor;
+import lombok.*;
 
 import java.time.LocalDateTime;
+import java.util.Collections;
+import java.util.Set;
 
 /**
  * User entity with enhanced security features
@@ -39,6 +38,10 @@ public class User {
 
     @Column(nullable = false, length = 50)
     private String lastName;
+
+    public String getFullName() {
+        return firstName + " " + lastName;
+    }
 
     @Column(nullable = false, length = 50, unique = true)
     private String username;
@@ -138,6 +141,14 @@ public class User {
         MICROSOFT,
         APPLE
     }
+
+    @Getter
+    @ManyToMany(fetch = FetchType.EAGER)
+    @JoinTable(
+            name = "user_roles",
+            joinColumns = @JoinColumn(name = "user_id"),
+            inverseJoinColumns = @JoinColumn(name = "role_id"))
+    private Set<Role> roles = Collections.emptySet();
 
     /**
      * User role enum

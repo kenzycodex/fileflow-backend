@@ -122,6 +122,21 @@ public class LocalEnhancedStorageService implements EnhancedStorageService {
     }
 
     @Override
+    public InputStream getInputStream(String filename) throws IOException {
+        Path file = rootLocation.resolve(filename);
+
+        if (!Files.exists(file)) {
+            throw new StorageException("Could not read file: " + filename);
+        }
+
+        try {
+            return new BufferedInputStream(Files.newInputStream(file), BUFFER_SIZE);
+        } catch (IOException e) {
+            throw new StorageException("Could not get input stream for file: " + filename, e);
+        }
+    }
+
+    @Override
     public Resource loadAsResource(String filename) {
         try {
             Path file = rootLocation.resolve(filename);

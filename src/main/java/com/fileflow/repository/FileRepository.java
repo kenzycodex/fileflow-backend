@@ -94,6 +94,21 @@ public interface FileRepository extends JpaRepository<File, Long> {
     @Query("SELECT f FROM File f WHERE f.user = :user AND f.isDeleted = false ORDER BY f.lastAccessed DESC NULLS LAST")
     List<File> findRecentFiles(@Param("user") User user);
 
+    @Query("SELECT COUNT(f) FROM File f WHERE f.user = :user AND f.isDeleted = false AND f.createdAt < :date")
+    long countByUserAndCreatedAtBeforeAndIsDeletedFalse(@Param("user") User user, @Param("date") LocalDateTime date);
+
+    @Query("SELECT SUM(f.fileSize) FROM File f WHERE f.user = :user AND f.isDeleted = false AND f.createdAt < :date")
+    Long sumFileSizeByUserAndCreatedAtBeforeAndIsDeletedFalse(@Param("user") User user, @Param("date") LocalDateTime date);
+
+    @Query("SELECT COUNT(f) FROM File f WHERE f.isDeleted = true")
+    long countByIsDeletedTrue();
+
+    @Query("SELECT f FROM File f WHERE f.user = :user AND f.createdAt > :date")
+    List<File> findByUserAndCreatedAtAfter(@Param("user") User user, @Param("date") LocalDateTime date);
+
+    @Query("SELECT f FROM File f WHERE f.createdAt BETWEEN :start AND :end")
+    List<File> findByCreatedAtBetween(@Param("start") LocalDateTime start, @Param("end") LocalDateTime end);
+
     /**
      * Find by storage path
      */

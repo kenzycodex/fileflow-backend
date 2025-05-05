@@ -1,22 +1,22 @@
 package com.fileflow.dto.request.file;
 
+import jakarta.validation.constraints.NotNull;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import org.springframework.web.multipart.MultipartFile;
 
-import jakarta.validation.constraints.NotNull;
-
 /**
- * DTO for uploading a file
+ * Request DTO for file uploads
  */
 @Data
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
 public class FileUploadRequest {
-    @NotNull(message = "File is required")
+
+    @NotNull(message = "File cannot be null")
     private MultipartFile file;
 
     private Long folderId;

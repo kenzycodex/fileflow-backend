@@ -43,7 +43,10 @@ public interface FolderRepository extends JpaRepository<Folder, Long> {
     @Query("SELECT f FROM Folder f WHERE f.user = :user AND f.isFavorite = true AND f.isDeleted = false")
     List<Folder> findFavoriteFolders(@Param("user") User user);
 
-    // Add this method to search deleted folders by name
+    // Search deleted folders by name
     @Query("SELECT f FROM Folder f WHERE f.user = :user AND f.isDeleted = true AND lower(f.folderName) LIKE lower(concat('%', :keyword, '%'))")
     Page<Folder> searchDeletedByFolderName(@Param("user") User user, @Param("keyword") String keyword, Pageable pageable);
+
+    @Query("SELECT COUNT(f) FROM Folder f WHERE f.user = :user AND f.isDeleted = false")
+    long countByUserAndIsDeletedFalse(@Param("user") User user);
 }

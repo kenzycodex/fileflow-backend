@@ -10,6 +10,7 @@ import com.fileflow.repository.UserRepository;
 import com.fileflow.util.Constants;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -17,7 +18,7 @@ import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.TimeUnit;
 
 @Service
 @RequiredArgsConstructor
@@ -26,10 +27,12 @@ public class QuotaServiceImpl implements QuotaService {
 
     private final UserRepository userRepository;
     private final QuotaExtensionRepository quotaExtensionRepository;
+    private final RedisTemplate<String, String> redisTemplate;
 
-    // Map to track reserved but not confirmed storage
-    // In a production environment, this should be stored in Redis or similar
-    private final Map<Long, Long> reservedStorage = new ConcurrentHashMap<>();
+    // Redis key prefix for quota reservations
+    private static final String QUOTA_RESERVATION_PREFIX = "quota:reservation:";
+    // Expiry time for reservations (in seconds)
+    private static final int RESERVATION_EXPIRY_SECONDS = 3600; // 1 hour
 
     @Override
     @Transactional
@@ -37,11 +40,11 @@ public class QuotaServiceImpl implements QuotaService {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("User", "id", userId));
 
-        // Get current storage usage (including reserved storage)
+        // Get current storage usage
         long currentUsage = user.getStorageUsed();
 
-        // Add reserved storage (if any)
-        Long reserved = reservedStorage.getOrDefault(userId, 0L);
+        // Add reserved storage from Redis (if any)
+        Long reserved = getReservedStorage(userId);
         currentUsage += reserved;
 
         // Get user's total quota (base + extensions)
@@ -52,8 +55,8 @@ public class QuotaServiceImpl implements QuotaService {
             return false;
         }
 
-        // Reserve storage
-        reservedStorage.put(userId, reserved + size);
+        // Reserve storage in Redis
+        reserveStorage(userId, reserved + size);
 
         return true;
     }
@@ -69,23 +72,43 @@ public class QuotaServiceImpl implements QuotaService {
         userRepository.save(user);
 
         // Remove from reserved storage
-        Long reserved = reservedStorage.getOrDefault(userId, 0L);
-        if (reserved >= size) {
-            reservedStorage.put(userId, reserved - size);
-        } else {
-            reservedStorage.remove(userId);
+        releaseQuotaReservation(userId, size);
+    }
+
+    @Override
+    public void releaseQuotaReservation(Long userId, long size) {
+        String key = QUOTA_RESERVATION_PREFIX + userId;
+
+        try {
+            // Get current reserved value
+            String reservedStr = redisTemplate.opsForValue().get(key);
+            long reserved = 0;
+
+            if (reservedStr != null) {
+                reserved = Long.parseLong(reservedStr);
+            }
+
+            // Calculate new value (never below zero)
+            long newReserved = Math.max(0, reserved - size);
+
+            if (newReserved > 0) {
+                // Update with new value
+                redisTemplate.opsForValue().set(key, String.valueOf(newReserved), RESERVATION_EXPIRY_SECONDS, TimeUnit.SECONDS);
+            } else {
+                // Remove key if zero
+                redisTemplate.delete(key);
+            }
+
+            log.debug("Released quota reservation for user {}: {} bytes, remaining reservation: {}", userId, size, newReserved);
+        } catch (Exception e) {
+            log.error("Error releasing quota reservation for user {}: {}", userId, e.getMessage(), e);
         }
     }
 
     @Override
     public void cancelReservedQuota(Long userId, long size) {
-        // Remove from reserved storage
-        Long reserved = reservedStorage.getOrDefault(userId, 0L);
-        if (reserved >= size) {
-            reservedStorage.put(userId, reserved - size);
-        } else {
-            reservedStorage.remove(userId);
-        }
+        // Delegate to releaseQuotaReservation for consistent implementation
+        releaseQuotaReservation(userId, size);
     }
 
     @Override
@@ -119,6 +142,9 @@ public class QuotaServiceImpl implements QuotaService {
         // Calculate total quota
         long totalQuota = calculateTotalQuota(user);
 
+        // Get reserved storage
+        long reservedStorage = getReservedStorage(userId);
+
         // Calculate usage percentage
         double usagePercentage = (double) user.getStorageUsed() / totalQuota * 100;
 
@@ -129,7 +155,8 @@ public class QuotaServiceImpl implements QuotaService {
         data.put("quotaExtensions", getActiveQuotaExtensions(user));
         data.put("totalQuota", totalQuota);
         data.put("usedStorage", user.getStorageUsed());
-        data.put("availableStorage", totalQuota - user.getStorageUsed());
+        data.put("reservedStorage", reservedStorage);
+        data.put("availableStorage", totalQuota - user.getStorageUsed() - reservedStorage);
         data.put("usagePercentage", Math.round(usagePercentage * 100) / 100.0); // Round to 2 decimal places
 
         return ApiResponse.builder()
@@ -169,6 +196,9 @@ public class QuotaServiceImpl implements QuotaService {
 
     // Helper methods
 
+    /**
+     * Calculate total quota for a user
+     */
     private long calculateTotalQuota(User user) {
         // Base quota
         long totalQuota = user.getStorageQuota();
@@ -182,8 +212,38 @@ public class QuotaServiceImpl implements QuotaService {
         return totalQuota;
     }
 
+    /**
+     * Get active quota extensions for a user
+     */
     private List<QuotaExtension> getActiveQuotaExtensions(User user) {
         LocalDateTime now = LocalDateTime.now();
         return quotaExtensionRepository.findByUserAndExpiryDateAfter(user, now);
+    }
+
+    /**
+     * Get reserved storage for a user from Redis
+     */
+    private long getReservedStorage(Long userId) {
+        String key = QUOTA_RESERVATION_PREFIX + userId;
+        String reservedStr = redisTemplate.opsForValue().get(key);
+
+        if (reservedStr != null) {
+            try {
+                return Long.parseLong(reservedStr);
+            } catch (NumberFormatException e) {
+                log.error("Invalid reserved storage value in Redis for user {}: {}", userId, reservedStr);
+            }
+        }
+
+        return 0L;
+    }
+
+    /**
+     * Reserve storage for a user in Redis
+     */
+    private void reserveStorage(Long userId, long amount) {
+        String key = QUOTA_RESERVATION_PREFIX + userId;
+        redisTemplate.opsForValue().set(key, String.valueOf(amount), RESERVATION_EXPIRY_SECONDS, TimeUnit.SECONDS);
+        log.debug("Reserved {} bytes for user {}", amount, userId);
     }
 }

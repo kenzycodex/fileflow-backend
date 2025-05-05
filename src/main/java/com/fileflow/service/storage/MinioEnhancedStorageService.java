@@ -130,6 +130,20 @@ public class MinioEnhancedStorageService implements EnhancedStorageService {
     }
 
     @Override
+    public InputStream getInputStream(String filename) throws IOException {
+        try {
+            GetObjectResponse response = minioClient.getObject(GetObjectArgs.builder()
+                    .bucket(bucketName)
+                    .object(filename)
+                    .build());
+
+            return response;
+        } catch (Exception e) {
+            throw new StorageException("Could not get input stream for file: " + filename, e);
+        }
+    }
+
+    @Override
     public Resource loadAsResource(String filename) {
         try {
             GetObjectResponse response = minioClient.getObject(GetObjectArgs.builder()

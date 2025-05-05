@@ -39,4 +39,7 @@ public interface ShareRepository extends JpaRepository<Share, Long> {
             @Param("owner") User owner,
             @Param("itemId") Long itemId,
             @Param("itemType") Share.ItemType itemType);
+
+    @Query("SELECT s FROM Share s WHERE s.owner = :user AND s.createdAt > :date")
+    List<Share> findByOwnerAndCreatedAtAfter(@Param("user") User user, @Param("date") LocalDateTime date);
 }

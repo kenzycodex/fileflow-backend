@@ -139,6 +139,10 @@ public class SecurityConfig {
                         .requestMatchers("/webjars/**").permitAll()
                         .requestMatchers("/configuration/**").permitAll()
 
+                        // Websocket endpoints
+                        .requestMatchers("/api/v1/ws").permitAll()
+                        .requestMatchers("/api/v1/ws/**").permitAll()
+
                         // All other requests need authentication
                         .anyRequest().authenticated())
 

@@ -1,24 +1,27 @@
 package com.fileflow.dto.request.file;
 
+import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Size;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import org.springframework.web.multipart.MultipartFile;
 
-import jakarta.validation.constraints.Min;
-import jakarta.validation.constraints.NotNull;
-
 /**
- * DTO for uploading a file chunk
+ * Request DTO for chunked uploads
  */
 @Data
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
 public class ChunkUploadRequest {
-    @NotNull(message = "Chunk file is required")
+
+    @NotNull(message = "Chunk cannot be null")
     private MultipartFile chunk;
+
+    private String uploadId;
 
     @NotNull(message = "Chunk number is required")
     @Min(value = 0, message = "Chunk number must be at least 0")
@@ -29,11 +32,11 @@ public class ChunkUploadRequest {
     private Integer totalChunks;
 
     @NotNull(message = "Total size is required")
-    @Min(value = 1, message = "Total size must be at least 1")
+    @Min(value = 1, message = "Total size must be greater than 0")
     private Long totalSize;
 
-    private String uploadId;
-
+    @NotNull(message = "Original filename is required")
+    @Size(min = 1, max = 255, message = "Filename must be between 1 and 255 characters")
     private String originalFilename;
 
     private Long folderId;

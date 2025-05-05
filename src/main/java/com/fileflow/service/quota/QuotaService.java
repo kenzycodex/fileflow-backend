@@ -4,60 +4,68 @@ import com.fileflow.dto.response.common.ApiResponse;
 
 public interface QuotaService {
     /**
-     * Check if user has enough quota and reserve it if available
+     * Check if a user has enough quota and reserve it
      *
-     * @param userId user ID
-     * @param size size to check against the quota
-     * @return true if quota available and reserved, false otherwise
+     * @param userId User ID
+     * @param size Size to reserve
+     * @return true if quota is available and reserved
      */
     boolean checkAndReserveQuota(Long userId, long size);
 
     /**
-     * Confirm quota usage after successful upload
+     * Confirm quota usage after file is successfully stored
      *
-     * @param userId user ID
-     * @param size used storage size
+     * @param userId User ID
+     * @param size Size used
      */
     void confirmQuotaUsage(Long userId, long size);
 
     /**
-     * Cancel reserved quota in case of failed upload
+     * Cancel reserved quota
      *
-     * @param userId user ID
-     * @param size size to release
+     * @param userId User ID
+     * @param size Size to cancel
      */
     void cancelReservedQuota(Long userId, long size);
 
     /**
-     * Update user's storage usage
+     * Release previously reserved quota
      *
-     * @param userId user ID
-     * @param additionalSize additional size used
+     * @param userId User ID
+     * @param size Size to release
+     */
+    void releaseQuotaReservation(Long userId, long size);
+
+    /**
+     * Update storage used by a user
+     *
+     * @param userId User ID
+     * @param additionalSize Additional size used
      */
     void updateStorageUsed(Long userId, long additionalSize);
 
     /**
-     * Release storage after file deletion
+     * Release storage when a file is deleted
      *
-     * @param userId user ID
-     * @param size size to release
+     * @param userId User ID
+     * @param size Size to release
      */
     void releaseStorage(Long userId, long size);
 
     /**
-     * Get user's storage usage information
+     * Get storage usage for a user
      *
-     * @param userId user ID
-     * @return response with usage information
+     * @param userId User ID
+     * @return API response with storage usage information
      */
     ApiResponse getStorageUsage(Long userId);
 
     /**
-     * Update user's storage quota
+     * Update quota for a user
      *
-     * @param userId user ID
-     * @param newQuota new quota in bytes
-     * @return response with updated quota information
+     * @param userId User ID
+     * @param newQuota New quota
+     * @return API response
      */
     ApiResponse updateQuota(Long userId, long newQuota);
 }

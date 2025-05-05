@@ -8,6 +8,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.jetbrains.annotations.NotNull;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -41,6 +42,11 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             "/swagger-resources/**",
             "/webjars/**",
             "/configuration/**",
+
+            // WebSocket paths
+            "/api/v1/ws",
+            "/api/v1/ws/**",
+
             "/api/v1/shares/links/**",
             "/api/v1/health",
             "/api/v1/users/check-username",
@@ -61,7 +67,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     }
 
     @Override
-    protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
+    protected void doFilterInternal(@NotNull HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
             throws ServletException, IOException {
         try {
             String jwt = getJwtFromRequest(request);
@@ -84,7 +90,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                         String latestToken = jwtService.getLatestAccessToken(userId);
 
                         // Check if token is current
-                        if (latestToken == null || !jwt.equals(latestToken)) {
+                        if (!jwt.equals(latestToken)) {
                             log.warn("Attempt to use an invalidated access token for user ID: {}", userId);
                             filterChain.doFilter(request, response);
                             return;

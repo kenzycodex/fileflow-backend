@@ -1,9 +1,6 @@
 package com.fileflow.model;
 
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Data;
-import lombok.NoArgsConstructor;
+import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
 
 import jakarta.persistence.*;
@@ -30,6 +27,11 @@ public class Share {
 
     @Enumerated(EnumType.STRING)
     private ItemType itemType;
+
+    @Setter
+    @Getter
+    @Transient
+    private String itemName;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "recipient_id")
