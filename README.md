@@ -1,4 +1,4 @@
-# FileFlow - Advanced File Storage and Management System
+# FileFlow - Advanced Cloud File Storage and Management System
 
 FileFlow is a comprehensive cloud storage solution that provides secure file storage, user authentication, access control, and efficient file management. It handles file uploads/downloads, folder organization, sharing permissions, and data security, ensuring a seamless user experience comparable to Google Drive or Dropbox.
 
